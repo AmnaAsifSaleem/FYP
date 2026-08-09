@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Alerts{% endblock %}
+{% block page_heading %}Alerts{% endblock %}
+
+{% block content %}
+
+<div class="section-heading">Suricata Security Alerts</div>
+
+<!-- Alert stats -->
+<div class="row g-3 mb-4" id="alert-stats">
+    <div class="col-6 col-md-3">
+        <div class="stat-card red">
+            <div class="stat-label">Total Alerts</div>
+            <div class="stat-value red" id="as-total">—</div>
+            <i class="bi bi-bell-fill stat-icon" style="color:var(--accent-red)"></i>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card orange">
+            <div class="stat-label">Active Attacks</div>
+            <div class="stat-value orange" id="as-attacks">—</div>
+            <i class="bi bi-lightning-fill stat-icon" style="color:var(--accent-orange)"></i>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card cyan">
+            <div class="stat-label">Affected Assets</div>
+            <div class="stat-value cyan" id="as-assets">—</div>
+            <i class="bi bi-hdd-network stat-icon" style="color:var(--accent-cyan)"></i>
+        </div>
+    </div>
+</div>
+
+<!-- Alerts table -->
+<div class="panel">
+    <div class="panel-header">
+        <span class="panel-title">Alert Feed</span>
+        <button class="btn-ot" onclick="loadAlerts()" style="font-size:11px;padding:5px 14px">
+            <i class="bi bi-arrow-clockwise"></i> REFRESH
+        </button>
+    </div>
+
+    <div id="alerts-loading" class="text-center py-5">
+        <div class="ot-spinner" style="width:32px;height:32px;border-width:3px"></div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-muted);margin-top:12px">LOADING ALERTS...</div>
+    </div>
+
+    <div id="alerts-content" style="display:none">
+        <!-- Empty state shown when no alerts -->
+        <div id="alerts-empty" class="empty-state" style="display:none">
+            <i class="bi bi-shield-check"></i>
+            <p>NO ALERTS DETECTED</p>
+            <p style="font-size:11px;margin-top:4px">Alerts will appear here when Suricata detects suspicious activity</p>
+        </div>
+
+        <!-- Table shown when alerts exist -->
+        <div id="alerts-table-wrap" style="display:none;overflow-x:auto">
+            <table class="ot-table">
+                <thead>
+                    <tr>
+                        <th>Severity</th>
+                        <th>Signature</th>
+                        <th>Asset</th>
+                        <th>Zone</th>
+                        <th>Protocol</th>
+                        <th>Source</th>
+                        <th>Destination</th>
+                        <th>Attack</th>
+                        <th>Count</th>
+                        <th>Detected</th>
+                    </tr>
+                </thead>
+                <tbody id="alerts-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Info panel about Suricata integration -->
+<div class="panel mt-3">
+    <div class="panel-header">
+        <span class="panel-title">Suricata Integration</span>
+    </div>
+    <div class="panel-body">
+        <div class="row g-3">
+            <div class="col-12 col-md-4">
+                <div style="background:var(--bg-dark);border:1px solid var(--border);border-radius:4px;padding:16px">
+                    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-cyan);letter-spacing:2px;margin-bottom:8px">DATA SOURCE</div>
+                    <div style="font-size:13px;color:var(--text-primary)">Suricata IDS/IPS</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">eve.json log output</div>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div style="background:var(--bg-dark);border:1px solid var(--border);border-radius:4px;padding:16px">
+                    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-cyan);letter-spacing:2px;margin-bottom:8px">PROTOCOLS MONITORED</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:4px">
+                        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;background:rgba(255,140,0,0.1);border:1px solid rgba(255,140,0,0.3);color:var(--accent-orange);padding:2px 8px;border-radius:2px">Modbus</span>
+                        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;background:rgba(255,140,0,0.1);border:1px solid rgba(255,140,0,0.3);color:var(--accent-orange);padding:2px 8px;border-radius:2px">S7comm</span>
+                        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;background:rgba(255,140,0,0.1);border:1px solid rgba(255,140,0,0.3);color:var(--accent-orange);padding:2px 8px;border-radius:2px">DNP3</span>
+                        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;background:rgba(255,140,0,0.1);border:1px solid rgba(255,140,0,0.3);color:var(--accent-orange);padding:2px 8px;border-radius:2px">BACnet</span>
+                        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;background:rgba(255,140,0,0.1);border:1px solid rgba(255,140,0,0.3);color:var(--accent-orange);padding:2px 8px;border-radius:2px">HTTP</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div style="background:var(--bg-dark);border:1px solid var(--border);border-radius:4px;padding:16px">
+                    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-cyan);letter-spacing:2px;margin-bottom:8px">INGEST METHOD</div>
+                    <div style="font-size:13px;color:var(--text-primary)">Python Listener</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">db_ingestor.py → PostgreSQL</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    loadAlerts();
+    loadAlertStats();
+});
+
+async function loadAlertStats() {
+    const r = await fetch('/api/summary');
+    const d = await r.json();
+    document.getElementById('as-total').textContent = d.total_alerts;
+    document.getElementById('as-attacks').textContent = d.active_attacks;
+    document.getElementById('as-assets').textContent = d.total_assets;
+}
+
+async function loadAlerts() {
+    document.getElementById('alerts-loading').style.display = 'block';
+    document.getElementById('alerts-content').style.display = 'none';
+
+    const r = await fetch('/api/alerts');
+    const data = await r.json();
+
+    document.getElementById('alerts-loading').style.display = 'none';
+    document.getElementById('alerts-content').style.display = 'block';
+
+    if (!data.length) {
+        document.getElementById('alerts-empty').style.display = 'block';
+        document.getElementById('alerts-table-wrap').style.display = 'none';
+        return;
+    }
+
+    document.getElementById('alerts-empty').style.display = 'none';
+    document.getElementById('alerts-table-wrap').style.display = 'block';
+
+    const severityLabel = (s) => {
+        const map = {1:'CRITICAL',2:'HIGH',3:'MEDIUM',4:'LOW',5:'INFO'};
+        const col = {1:'var(--critical)',2:'var(--high)',3:'var(--medium)',4:'var(--low)',5:'var(--text-muted)'};
+        const label = map[s] || `SEV ${s}`;
+        const color = col[s] || 'var(--text-muted)';
+        return `<span class="tier-badge" style="background:rgba(0,0,0,0.2);color:${color};border-color:${color}">${label}</span>`;
+    };
+
+    const tbody = document.getElementById('alerts-tbody');
+    tbody.innerHTML = data.map(a => `
+        <tr>
+            <td>${severityLabel(a.severity)}</td>
+            <td>
+                <div style="font-size:13px;font-weight:600">${a.alert_signature || '—'}</div>
+                <div style="font-size:11px;color:var(--text-muted)">${a.alert_category || ''}</div>
+            </td>
+            <td>
+                <div style="font-weight:600">${a.vendor || '—'}</div>
+                <div style="font-size:11px;color:var(--text-muted)">${a.product || ''} · ${a.ip || ''}</div>
+            </td>
+            <td><span class="zone-${a.zone}">${a.zone || '—'}</span></td>
+            <td><span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-orange)">${a.protocol || '—'}</span></td>
+            <td><span style="font-family:'Share Tech Mono',monospace;font-size:11px">${a.src_ip || '—'}${a.src_port ? ':'+a.src_port : ''}</span></td>
+            <td><span style="font-family:'Share Tech Mono',monospace;font-size:11px">${a.dst_ip || '—'}${a.dst_port ? ':'+a.dst_port : ''}</span></td>
+            <td>
+                ${a.is_active_attack
+                    ? '<span style="font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--critical);background:rgba(255,51,85,0.15);border:1px solid rgba(255,51,85,0.4);padding:2px 8px;border-radius:2px">ACTIVE</span>'
+                    : '<span style="color:var(--text-muted);font-size:11px">—</span>'}
+            </td>
+            <td><span style="font-family:'Share Tech Mono',monospace">${a.alert_count || 1}</span></td>
+            <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);white-space:nowrap">
+                ${a.detected_at ? a.detected_at.substring(0,16) : '—'}
+            </td>
+        </tr>
+    `).join('');
+}
+</script>
+{% endblock %}

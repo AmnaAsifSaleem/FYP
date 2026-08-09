@@ -1,0 +1,134 @@
+================================================================================
+CAVE-OT PIPELINE FLOW DIAGRAM
+================================================================================
+
+ONE-TIME SETUP (Training Phase)
+================================
+
+    training_ready.csv (206k CVEs)
+              |
+              v
+    +-------------------+
+    | model_trainer.py  |  <-- Stage 1: General Training
+    +-------------------+
+              |
+              v
+    general_vectorizer.pkl
+    general_matrix.pkl
+    cve_database.pkl
+              |
+              v
+    ot_training_ready.csv (6k CVEs)
+              |
+              v
+    +-------------------+
+    | model_trainer.py  |  <-- Stage 2: OT Fine-tuning
+    +-------------------+
+              |
+              v
+    ot_vectorizer.pkl
+    ot_matrix.pkl
+    ot_cve_database.pkl
+
+
+RUNTIME PIPELINE (Per Device Scan)
+===================================
+
+    Network Scan
+         |
+         v
+    +----------------+
+    | discover.py    |  <-- Finds devices on network
+    +----------------+      (vendor, product, firmware)
+         |
+         v
+    model_input.json (devices only)
+         |
+         v
+    +----------------+
+    | cve_mapper.py  |  <-- Maps devices to CVEs
+    +----------------+      using TF-IDF similarity
+         |
+         v
+    model_input.json (devices + CVEs)
+         |
+         v
+    +----------------+
+    | risk_scorer.py |  <-- Calculates risk scores
+    +----------------+      using CVSS v3.1 + context
+         |
+         v
+    model_input.json (devices + CVEs + risk scores)
+         |
+         v
+    +----------------+
+    | Dashboard      |  <-- Displays results
+    +----------------+
+
+
+DATA FLOW EXAMPLE
+=================
+
+INPUT (from discover.py):
+{
+  "ip": "192.168.1.10",
+  "vendor": "Schneider Electric",
+  "product": "Modicon M340",
+  "firmware": "2.39",
+  "device_type": "PLC",
+  "zone": "OT"
+}
+
+AFTER cve_mapper.py:
+{
+  "ip": "192.168.1.10",
+  "vendor": "Schneider Electric",
+  "product": "Modicon M340",
+  "cves": [
+    {
+      "cve_id": "CVE-2019-10915",
+      "cvss": 8.8,
+      "epss": 0.021,
+      "similarity": 0.94
+    }
+  ]
+}
+
+AFTER risk_scorer.py:
+{
+  "ip": "192.168.1.10",
+  "vendor": "Schneider Electric",
+  "product": "Modicon M340",
+  "cves": [
+    {
+      "cve_id": "CVE-2019-10915",
+      "cvss": 8.8,
+      "risk_score": 8.7,
+      "risk_tier": "CRITICAL",
+      "risk_emoji": "🔴"
+    }
+  ]
+}
+
+
+ALGORITHM DETAILS
+=================
+
+CVE Mapping (TF-IDF + Cosine Similarity):
+1. Build query: "vendor product service"
+2. Transform to TF-IDF vector
+3. Calculate cosine similarity with all CVEs
+4. Filter by threshold (0.15 for OT, 0.20 for IT)
+5. Filter by firmware version range
+6. Return top matches
+
+Risk Scoring (CVSS v3.1 Environmental):
+1. Temporal = CVSS × exploit_maturity(EPSS) × remediation(KEV)
+2. CIA = (C×0.20) + (I×0.30) + (A×0.50)  [OT weighting]
+3. Environmental = Temporal × CIA × asset_criticality × 10
+4. KEV bonus = Environmental × 1.10 (if KEV=1)
+5. Suricata = Environmental + (alerts × 1.5)
+6. Final = min(score, 10.0)
+
+
+================================================================================

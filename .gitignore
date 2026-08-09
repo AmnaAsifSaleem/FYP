@@ -1,0 +1,50 @@
+# ── VMware disk images / VM binaries — NEVER commit (15+ GB, over GitHub limit) ──
+*.vmdk
+*.vmem
+*.vmsn
+*.vmsd
+*.vmx
+*.vmxf
+*.nvram
+*.scoreboard
+vmware*.log
+mksSandbox*.log
+
+# ── Trained models (regenerable via Model_Training/) — too large for git ──
+model/*.pkl
+Policy_Compliance/models/*.pkl
+
+# ── Datasets (downloadable / regenerable) ──
+Datasets/
+NVD_Data/
+New folder/
+Model Traning/
+epss_scores-*.csv
+training_ready*.csv
+ot_training_ready*.csv
+*.pcap
+*.csv.gz
+
+# ── Generated runtime output ──
+Assets/*.json
+**/risk_scored_results.json
+**/vulnerability_scan_results.json
+**/suricata_context.json
+**/model_input.json
+**/session_start.json
+shared folder/*.json
+docker/shared/
+
+# ── Secrets ──
+.env
+*.env
+
+# ── Python / editor / OS ──
+__pycache__/
+*.pyc
+*.pyo
+.vs/
+.vscode/
+.claude/settings.local.json
+Thumbs.db
+.DS_Store

@@ -1,0 +1,1733 @@
+{
+  "test_set_metrics": {
+    "total_queries": 1199,
+    "top_1_vendor_accuracy": 0.854045037531276,
+    "top_5_vendor_recall": 0.9007506255212677,
+    "top_10_vendor_recall": 0.9007506255212677,
+    "avg_vendor_matches_in_top_10": 7.360300250208507,
+    "avg_product_matches_in_top_10": 4.609674728940784,
+    "avg_top_1_similarity": 0.5663649791207849,
+    "avg_top_5_similarity": 0.4819884196226576,
+    "avg_top_10_similarity": 0.4252409886745925,
+    "min_top_1_similarity": 0.09278122613643347,
+    "max_top_1_similarity": 0.9601588348964348
+  },
+  "vendor_breakdown": {
+    "properfraction": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "abb": {
+      "total": 22,
+      "top1_match": 20,
+      "top5_match": 21,
+      "top10_match": 21
+    },
+    "siemens": {
+      "total": 337,
+      "top1_match": 333,
+      "top5_match": 335,
+      "top10_match": 335
+    },
+    "rockwell automation": {
+      "total": 51,
+      "top1_match": 49,
+      "top5_match": 51,
+      "top10_match": 51
+    },
+    "schneider electric": {
+      "total": 137,
+      "top1_match": 128,
+      "top5_match": 137,
+      "top10_match": 137
+    },
+    "honeywell": {
+      "total": 22,
+      "top1_match": 17,
+      "top5_match": 21,
+      "top10_match": 21
+    },
+    "moxa": {
+      "total": 64,
+      "top1_match": 61,
+      "top5_match": 63,
+      "top10_match": 63
+    },
+    "analytify": {
+      "total": 3,
+      "top1_match": 3,
+      "top5_match": 3,
+      "top10_match": 3
+    },
+    "framasoft": {
+      "total": 3,
+      "top1_match": 3,
+      "top5_match": 3,
+      "top10_match": 3
+    },
+    "phoenix contact": {
+      "total": 15,
+      "top1_match": 15,
+      "top5_match": 15,
+      "top10_match": 15
+    },
+    "plantronics": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "laquisscada": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "fcba zzm": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "solarwinds": {
+      "total": 2,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "wegia": {
+      "total": 25,
+      "top1_match": 25,
+      "top5_match": 25,
+      "top10_match": 25
+    },
+    "tenda": {
+      "total": 11,
+      "top1_match": 10,
+      "top5_match": 11,
+      "top10_match": 11
+    },
+    "advantech": {
+      "total": 55,
+      "top1_match": 54,
+      "top5_match": 54,
+      "top10_match": 54
+    },
+    "trane": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "f5": {
+      "total": 3,
+      "top1_match": 3,
+      "top5_match": 3,
+      "top10_match": 3
+    },
+    "certec edv": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "eaton": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "veeam": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "ge": {
+      "total": 7,
+      "top1_match": 6,
+      "top5_match": 7,
+      "top10_match": 7
+    },
+    "w2wiki project": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "kirillmakarov": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "codesys": {
+      "total": 17,
+      "top1_match": 17,
+      "top5_match": 17,
+      "top10_match": 17
+    },
+    "wago": {
+      "total": 17,
+      "top1_match": 16,
+      "top5_match": 17,
+      "top10_match": 17
+    },
+    "emc": {
+      "total": 3,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "cevik": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "openplcproject": {
+      "total": 2,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "mitsubishi electric": {
+      "total": 23,
+      "top1_match": 23,
+      "top5_match": 23,
+      "top10_match": 23
+    },
+    "faronics": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "emerson": {
+      "total": 18,
+      "top1_match": 13,
+      "top5_match": 16,
+      "top10_match": 16
+    },
+    "hitachienergy": {
+      "total": 11,
+      "top1_match": 3,
+      "top5_match": 9,
+      "top10_match": 9
+    },
+    "sonicwall": {
+      "total": 4,
+      "top1_match": 3,
+      "top5_match": 3,
+      "top10_match": 3
+    },
+    "weitong": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "indasengineering": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "dpdk": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "abbott": {
+      "total": 3,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "delta electronics": {
+      "total": 40,
+      "top1_match": 39,
+      "top5_match": 39,
+      "top10_match": 39
+    },
+    "twisted": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "artbees": {
+      "total": 2,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "webassembly": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "ocuco": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "sysbasics": {
+      "total": 2,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "haxx": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "boschrexroth": {
+      "total": 2,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "beckhoff": {
+      "total": 2,
+      "top1_match": 1,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "boom-core": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "artifex": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "martinbarker": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "libdwarf project": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "open5gs": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "bigbluebutton": {
+      "total": 2,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "wondershare": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "clinical-genomics": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "abbs software audio media player project": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "yokogawa": {
+      "total": 12,
+      "top1_match": 10,
+      "top5_match": 12,
+      "top10_match": 12
+    },
+    "tcl": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "arubanetworks": {
+      "total": 2,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "contec": {
+      "total": 2,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "sixlabors": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "agilelogix": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "slic3r": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "corel": {
+      "total": 2,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "aveva": {
+      "total": 9,
+      "top1_match": 9,
+      "top5_match": 9,
+      "top10_match": 9
+    },
+    "ericsson": {
+      "total": 3,
+      "top1_match": 3,
+      "top5_match": 3,
+      "top10_match": 3
+    },
+    "hcltech": {
+      "total": 3,
+      "top1_match": 3,
+      "top5_match": 3,
+      "top10_match": 3
+    },
+    "zabbix": {
+      "total": 15,
+      "top1_match": 9,
+      "top5_match": 14,
+      "top10_match": 14
+    },
+    "treasuredata": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "themewinter": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "attendance management system project": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "jeesite": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "lcds": {
+      "total": 2,
+      "top1_match": 0,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "home.cern": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "scada-lts": {
+      "total": 4,
+      "top1_match": 4,
+      "top5_match": 4,
+      "top10_match": 4
+    },
+    "vasion": {
+      "total": 2,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "citrix": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "usabilitydynamics": {
+      "total": 3,
+      "top1_match": 2,
+      "top5_match": 3,
+      "top10_match": 3
+    },
+    "ortussolutions": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "omron": {
+      "total": 13,
+      "top1_match": 11,
+      "top5_match": 12,
+      "top10_match": 12
+    },
+    "sismics": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "sharethis": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "sloan": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "delhivery": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "commvault": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "angeljudesuarez": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "redlion": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "harry0703": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "utarit": {
+      "total": 2,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "rapidscada": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "ovation": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "beego": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "getsymphony": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "chamilo": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "belden": {
+      "total": 2,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "flexense": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "oretnom23": {
+      "total": 5,
+      "top1_match": 5,
+      "top5_match": 5,
+      "top10_match": 5
+    },
+    "hornerautomation": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "socomec": {
+      "total": 4,
+      "top1_match": 4,
+      "top5_match": 4,
+      "top10_match": 4
+    },
+    "softlabbd": {
+      "total": 5,
+      "top1_match": 4,
+      "top5_match": 4,
+      "top10_match": 4
+    },
+    "trendmicro": {
+      "total": 3,
+      "top1_match": 3,
+      "top5_match": 3,
+      "top10_match": 3
+    },
+    "hidglobal": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "zulip": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "issabel": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "eluktronics": {
+      "total": 2,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "vbulletin": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "teltonika": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "fujitsu": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "webdados": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "xinje": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "millionclues": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "veritas": {
+      "total": 2,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "sensiolabs": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "openrobotics": {
+      "total": 7,
+      "top1_match": 7,
+      "top5_match": 7,
+      "top10_match": 7
+    },
+    "redline": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "se": {
+      "total": 2,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "paloaltonetworks": {
+      "total": 2,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "arraytics": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "s3india": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "grocy project": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "mysyngeryss": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "doorgets": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "afsanalytics": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "softexpert": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "tibco": {
+      "total": 5,
+      "top1_match": 5,
+      "top5_match": 5,
+      "top10_match": 5
+    },
+    "onlineonly": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "conversios": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "sohu": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "hubstaff": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "wp athletics project": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "idec": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "trihedral": {
+      "total": 3,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "gerbv project": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "hortusfox": {
+      "total": 2,
+      "top1_match": 1,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "dataease": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "mydata": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "parallels": {
+      "total": 3,
+      "top1_match": 3,
+      "top5_match": 3,
+      "top10_match": 3
+    },
+    "avirtum": {
+      "total": 2,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "graphicsmagick": {
+      "total": 3,
+      "top1_match": 3,
+      "top5_match": 3,
+      "top10_match": 3
+    },
+    "loway": {
+      "total": 2,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "opnsense": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "wp-statistics": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "mieweb": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "windowshello project": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "dhis2": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "softing": {
+      "total": 2,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "cornelraiu": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "open-xchange": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "hanwhavision": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "awsm": {
+      "total": 2,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "khanacademy": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "chipsalliance": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "st": {
+      "total": 2,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "netapp": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "stivasoft": {
+      "total": 2,
+      "top1_match": 2,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "wp statistics": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "jabberd2": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "yarnpkg": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "wpgoaltracker": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "symphony-mobile": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "hoytech": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "zohocorp": {
+      "total": 2,
+      "top1_match": 1,
+      "top5_match": 2,
+      "top10_match": 2
+    },
+    "zyxel": {
+      "total": 3,
+      "top1_match": 3,
+      "top5_match": 3,
+      "top10_match": 3
+    },
+    "libgd": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "sauter-controls": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "virtualmin": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "iconics": {
+      "total": 4,
+      "top1_match": 4,
+      "top5_match": 4,
+      "top10_match": 4
+    },
+    "simpleledger": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "algorithmia": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "proxmox": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "rt-thread": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "thresholdsecurity": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "invt": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "libreoffice": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "trendnet": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "siderolabs": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "we-con": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "open-metadata": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "rextheme": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "libpng": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "hitsteps": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "gnulib": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "iqbolshoh": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "rabbitmq-c project": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "devsabbirahmed": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "supcontech": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "hitachi": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "cloudflare": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "slimndap": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "circutor": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "avaya": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "jtekt": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "brocade": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "trianglemicroworks": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "trms": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "circontrol": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "samba": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "veepn": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "opengeos": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "scadabr": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "navis": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "dropwizard": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "wso2": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "felisify": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "altran": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "supcon": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "londontrustmedia": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "multidots": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "microchip": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "gnu": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "umbraco": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "kaseya": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "lsfusion": {
+      "total": 1,
+      "top1_match": 0,
+      "top5_match": 0,
+      "top10_match": 0
+    },
+    "veronalabs": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "dino physics school assistant project": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    },
+    "roothub project": {
+      "total": 1,
+      "top1_match": 1,
+      "top5_match": 1,
+      "top10_match": 1
+    }
+  },
+  "new_devices": [
+    {
+      "device": "New S7-1200 device",
+      "vendor": "siemens",
+      "top_cve": "CVE-2016-2846",
+      "top_vendor": "siemens",
+      "top_score": 0.6001625529433656,
+      "top_5_avg_score": 0.401913378105334,
+      "vendor_match": true
+    },
+    {
+      "device": "Triconex safety system",
+      "vendor": "schneider electric",
+      "top_cve": "CVE-2021-22743",
+      "top_vendor": "schneider electric",
+      "top_score": 0.27633492343326826,
+      "top_5_avg_score": 0.22027858415562096,
+      "vendor_match": true
+    },
+    {
+      "device": "CompactLogix controller",
+      "vendor": "rockwell automation",
+      "top_cve": "CVE-2018-19016",
+      "top_vendor": "rockwell automation",
+      "top_score": 0.5050603857786476,
+      "top_5_avg_score": 0.34163853124135535,
+      "vendor_match": true
+    },
+    {
+      "device": "HMI touch panel",
+      "vendor": "siemens",
+      "top_cve": "CVE-2022-40227",
+      "top_vendor": "siemens",
+      "top_score": 0.29488028402372424,
+      "top_5_avg_score": 0.2866035019549,
+      "vendor_match": true
+    },
+    {
+      "device": "Quantum PLC",
+      "vendor": "schneider electric",
+      "top_cve": "CVE-2018-7759",
+      "top_vendor": "schneider electric",
+      "top_score": 0.4721303981045379,
+      "top_5_avg_score": 0.40442041822319236,
+      "vendor_match": true
+    },
+    {
+      "device": "ABB AC500 controller",
+      "vendor": "abb",
+      "top_cve": "CVE-2025-41738",
+      "top_vendor": "codesys",
+      "top_score": 0.2343324481963729,
+      "top_5_avg_score": 0.22160575807453425,
+      "vendor_match": false
+    },
+    {
+      "device": "MELSEC iQ-R PLC",
+      "vendor": "mitsubishi electric",
+      "top_cve": "CVE-2022-25156",
+      "top_vendor": "mitsubishi electric",
+      "top_score": 0.6838440961057995,
+      "top_5_avg_score": 0.6382598326226763,
+      "vendor_match": true
+    },
+    {
+      "device": "Experion DCS controller",
+      "vendor": "honeywell",
+      "top_cve": "CVE-2016-8344",
+      "top_vendor": "honeywell",
+      "top_score": 0.40820369631967257,
+      "top_5_avg_score": 0.3255953663652124,
+      "vendor_match": true
+    },
+    {
+      "device": "SYSMAC NJ controller",
+      "vendor": "omron",
+      "top_cve": "CVE-2019-18259",
+      "top_vendor": "omron",
+      "top_score": 0.26954957918417854,
+      "top_5_avg_score": 0.24080785521293793,
+      "vendor_match": true
+    },
+    {
+      "device": "PLCnext controller",
+      "vendor": "phoenix contact",
+      "top_cve": "CVE-2023-0757",
+      "top_vendor": "phoenix contact",
+      "top_score": 0.360656012584593,
+      "top_5_avg_score": 0.3154497189103483,
+      "vendor_match": true
+    }
+  ],
+  "sample_results": [
+    {
+      "top_1_vendor_match": false,
+      "top_5_vendor_match": false,
+      "top_10_vendor_match": false,
+      "vendor_matches_in_top_10": 0,
+      "product_matches_in_top_10": 0,
+      "top_1_score": 0.1367583546544974,
+      "top_5_avg_score": 0.11005027646006889,
+      "top_10_avg_score": 0.09413006976616675,
+      "top_1_cve": "CVE-2021-33727",
+      "top_1_vendor": "siemens",
+      "top_1_product": "sinec nms",
+      "query_vendor": "properfraction",
+      "query_product": "profilepress",
+      "query_cve": "CVE-2021-24522"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 8,
+      "product_matches_in_top_10": 6,
+      "top_1_score": 0.2576253269930405,
+      "top_5_avg_score": 0.24066569328833612,
+      "top_10_avg_score": 0.19711000258326325,
+      "top_1_cve": "CVE-2020-24676",
+      "top_1_vendor": "abb",
+      "top_1_product": "symphony \\+ historian",
+      "query_vendor": "abb",
+      "query_product": "symphony \\+ historian",
+      "query_cve": "CVE-2020-24679"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 10,
+      "product_matches_in_top_10": 9,
+      "top_1_score": 0.5849526970104075,
+      "top_5_avg_score": 0.5512229423428814,
+      "top_10_avg_score": 0.5408530169948488,
+      "top_1_cve": "CVE-2021-33722",
+      "top_1_vendor": "siemens",
+      "top_1_product": "sinec nms",
+      "query_vendor": "siemens",
+      "query_product": "sinec nms",
+      "query_cve": "CVE-2021-33725"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 10,
+      "product_matches_in_top_10": 9,
+      "top_1_score": 0.5687359358001941,
+      "top_5_avg_score": 0.5659040102230015,
+      "top_10_avg_score": 0.5466548099304467,
+      "top_1_cve": "CVE-2021-33722",
+      "top_1_vendor": "siemens",
+      "top_1_product": "sinec nms",
+      "query_vendor": "siemens",
+      "query_product": "sinec nms",
+      "query_cve": "CVE-2021-33735"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 10,
+      "product_matches_in_top_10": 10,
+      "top_1_score": 0.36295367117284716,
+      "top_5_avg_score": 0.3544773033641371,
+      "top_10_avg_score": 0.34850836882232594,
+      "top_1_cve": "CVE-2020-6967",
+      "top_1_vendor": "rockwell automation",
+      "top_1_product": "factorytalk",
+      "query_vendor": "rockwell automation",
+      "query_product": "factorytalk",
+      "query_cve": "CVE-2020-14516"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 10,
+      "product_matches_in_top_10": 0,
+      "top_1_score": 0.424653434996648,
+      "top_5_avg_score": 0.3995755382316344,
+      "top_10_avg_score": 0.3602604934464709,
+      "top_1_cve": "CVE-2023-36521",
+      "top_1_vendor": "siemens",
+      "top_1_product": "simatic mv540 h",
+      "query_vendor": "siemens",
+      "query_product": "simatic rf166c",
+      "query_cve": "CVE-2021-31340"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 10,
+      "product_matches_in_top_10": 5,
+      "top_1_score": 0.44529040655141955,
+      "top_5_avg_score": 0.3558451067864355,
+      "top_10_avg_score": 0.32016367647736593,
+      "top_1_cve": "CVE-2018-7789",
+      "top_1_vendor": "schneider electric",
+      "top_1_product": "modicon m221",
+      "query_vendor": "schneider electric",
+      "query_product": "modicon m221",
+      "query_cve": "CVE-2018-7790"
+    },
+    {
+      "top_1_vendor_match": false,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 2,
+      "product_matches_in_top_10": 1,
+      "top_1_score": 0.2322201377910539,
+      "top_5_avg_score": 0.1868457612645887,
+      "top_10_avg_score": 0.1658588460380362,
+      "top_1_cve": "CVE-2024-6876",
+      "top_1_vendor": "codesys",
+      "top_1_product": "oscat basic",
+      "query_vendor": "honeywell",
+      "query_product": "softmaster",
+      "query_cve": "CVE-2022-2332"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 10,
+      "product_matches_in_top_10": 2,
+      "top_1_score": 0.7551351290984075,
+      "top_5_avg_score": 0.5742984056692204,
+      "top_10_avg_score": 0.49351745759668486,
+      "top_1_cve": "CVE-2020-7003",
+      "top_1_vendor": "moxa",
+      "top_1_product": "iologik 2512",
+      "query_vendor": "moxa",
+      "query_product": "iologik 2512",
+      "query_cve": "CVE-2019-18238"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 10,
+      "product_matches_in_top_10": 10,
+      "top_1_score": 0.6128399995853561,
+      "top_5_avg_score": 0.6058835692167298,
+      "top_10_avg_score": 0.5919707084794771,
+      "top_1_cve": "CVE-2022-29033",
+      "top_1_vendor": "siemens",
+      "top_1_product": "jt2go",
+      "query_vendor": "siemens",
+      "query_product": "jt2go",
+      "query_cve": "CVE-2021-34297"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 8,
+      "product_matches_in_top_10": 8,
+      "top_1_score": 0.8701112833027036,
+      "top_5_avg_score": 0.6392968065824862,
+      "top_10_avg_score": 0.5390510093660081,
+      "top_1_cve": "CVE-2024-43265",
+      "top_1_vendor": "analytify",
+      "top_1_product": "analytify google analytics dashboard",
+      "query_vendor": "analytify",
+      "query_product": "analytify google analytics dashboard",
+      "query_cve": "CVE-2024-35689"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 3,
+      "product_matches_in_top_10": 3,
+      "top_1_score": 0.4317853365268459,
+      "top_5_avg_score": 0.34144314093563305,
+      "top_10_avg_score": 0.27007130364245724,
+      "top_1_cve": "CVE-2025-32947",
+      "top_1_vendor": "framasoft",
+      "top_1_product": "peertube",
+      "query_vendor": "framasoft",
+      "query_product": "peertube",
+      "query_cve": "CVE-2025-32944"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 10,
+      "product_matches_in_top_10": 10,
+      "top_1_score": 0.7047634232361975,
+      "top_5_avg_score": 0.6982081170464197,
+      "top_10_avg_score": 0.6884689350608248,
+      "top_1_cve": "CVE-2023-27404",
+      "top_1_vendor": "siemens",
+      "top_1_product": "tecnomatix plant simulation",
+      "query_vendor": "siemens",
+      "query_product": "tecnomatix plant simulation",
+      "query_cve": "CVE-2023-27405"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 1,
+      "product_matches_in_top_10": 1,
+      "top_1_score": 0.4195345601099808,
+      "top_5_avg_score": 0.1971718054566422,
+      "top_10_avg_score": 0.16099035196653227,
+      "top_1_cve": "CVE-2025-32946",
+      "top_1_vendor": "framasoft",
+      "top_1_product": "peertube",
+      "query_vendor": "framasoft",
+      "query_product": "peertube",
+      "query_cve": "CVE-2025-32945"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 10,
+      "product_matches_in_top_10": 3,
+      "top_1_score": 0.554887315645392,
+      "top_5_avg_score": 0.500097743378253,
+      "top_10_avg_score": 0.43861249905056254,
+      "top_1_cve": "CVE-2021-33542",
+      "top_1_vendor": "phoenix contact",
+      "top_1_product": "config\\+",
+      "query_vendor": "phoenix contact",
+      "query_product": "automationworx",
+      "query_cve": "CVE-2022-3461"
+    },
+    {
+      "top_1_vendor_match": false,
+      "top_5_vendor_match": false,
+      "top_10_vendor_match": false,
+      "vendor_matches_in_top_10": 0,
+      "product_matches_in_top_10": 0,
+      "top_1_score": 0.20401711036427111,
+      "top_5_avg_score": 0.18085660082794647,
+      "top_10_avg_score": 0.17289326834332472,
+      "top_1_cve": "CVE-2025-1131",
+      "top_1_vendor": "sangoma",
+      "top_1_product": "asterisk",
+      "query_vendor": "plantronics",
+      "query_product": "plantronics hub",
+      "query_cve": "CVE-2019-15742"
+    },
+    {
+      "top_1_vendor_match": false,
+      "top_5_vendor_match": false,
+      "top_10_vendor_match": false,
+      "vendor_matches_in_top_10": 0,
+      "product_matches_in_top_10": 0,
+      "top_1_score": 0.29906280678296654,
+      "top_5_avg_score": 0.2651978070335851,
+      "top_10_avg_score": 0.22563437819312435,
+      "top_1_cve": "CVE-2023-5130",
+      "top_1_vendor": "delta electronics",
+      "top_1_product": "wplsoft",
+      "query_vendor": "laquisscada",
+      "query_product": "scada",
+      "query_cve": "CVE-2020-25188"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 10,
+      "product_matches_in_top_10": 10,
+      "top_1_score": 0.6285270805330965,
+      "top_5_avg_score": 0.5883268690671889,
+      "top_10_avg_score": 0.53555602286911,
+      "top_1_cve": "CVE-2021-22707",
+      "top_1_vendor": "schneider electric",
+      "top_1_product": "evlink city evc1s22p4",
+      "query_vendor": "schneider electric",
+      "query_product": "evlink city evc1s22p4",
+      "query_cve": "CVE-2021-22729"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 10,
+      "product_matches_in_top_10": 6,
+      "top_1_score": 0.7995445707641233,
+      "top_5_avg_score": 0.7844929124487876,
+      "top_10_avg_score": 0.596076880937843,
+      "top_1_cve": "CVE-2022-24290",
+      "top_1_vendor": "siemens",
+      "top_1_product": "teamcenter",
+      "query_vendor": "siemens",
+      "query_product": "teamcenter",
+      "query_cve": "CVE-2022-34660"
+    },
+    {
+      "top_1_vendor_match": true,
+      "top_5_vendor_match": true,
+      "top_10_vendor_match": true,
+      "vendor_matches_in_top_10": 10,
+      "product_matches_in_top_10": 3,
+      "top_1_score": 0.6100562808579512,
+      "top_5_avg_score": 0.4804239377271412,
+      "top_10_avg_score": 0.4042313489271601,
+      "top_1_cve": "CVE-2024-7507",
+      "top_1_vendor": "rockwell automation",
+      "top_1_product": "compactlogix 5380",
+      "query_vendor": "rockwell automation",
+      "query_product": "compactlogix 5380",
+      "query_cve": "CVE-2024-7515"
+    }
+  ]
+}

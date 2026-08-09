@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+{% block title %}Run Pipeline{% endblock %}
+{% block page_heading %}Run Pipeline{% endblock %}
+
+{% block content %}
+
+<div class="section-heading">Pipeline Control</div>
+
+<div class="row g-3">
+    <!-- Pipeline flow diagram -->
+    <div class="col-12 col-xl-5">
+        <div class="panel h-100">
+            <div class="panel-header">
+                <span class="panel-title">Pipeline Architecture</span>
+            </div>
+            <div class="panel-body">
+                <!-- Flow steps -->
+                <div id="pipeline-steps">
+                    <div class="pipeline-step" id="step-1">
+                        <div class="step-icon"><i class="bi bi-wifi"></i></div>
+                        <div class="step-body">
+                            <div class="step-title">Asset Discovery</div>
+                            <div class="step-desc">Runs on Ubuntu VM via cave_monitor.py<br>Detects OT/IT devices on network</div>
+                            <div class="step-file">cave_monitor.py → smart_discover.py</div>
+                        </div>
+                        <div class="step-status" id="ss-1"></div>
+                    </div>
+
+                    <div class="step-arrow"><i class="bi bi-arrow-down"></i></div>
+
+                    <div class="pipeline-step" id="step-2">
+                        <div class="step-icon"><i class="bi bi-search"></i></div>
+                        <div class="step-body">
+                            <div class="step-title">CVE Mapping</div>
+                            <div class="step-desc">TF-IDF + Cosine Similarity<br>Maps devices to known CVEs</div>
+                            <div class="step-file">cve_discovery.py (on VM)</div>
+                        </div>
+                        <div class="step-status" id="ss-2"></div>
+                    </div>
+
+                    <div class="step-arrow"><i class="bi bi-arrow-down"></i></div>
+
+                    <div class="pipeline-step" id="step-3">
+                        <div class="step-icon"><i class="bi bi-calculator"></i></div>
+                        <div class="step-body">
+                            <div class="step-title">Risk Scoring</div>
+                            <div class="step-desc">CVSS + EPSS + OT CIA weighting<br>Contextual risk score per CVE</div>
+                            <div class="step-file">risk_scorer_v2 (inlined in cave_monitor)</div>
+                        </div>
+                        <div class="step-status" id="ss-3"></div>
+                    </div>
+
+                    <div class="step-arrow"><i class="bi bi-arrow-down"></i></div>
+
+                    <div class="pipeline-step" id="step-4">
+                        <div class="step-icon"><i class="bi bi-database-fill"></i></div>
+                        <div class="step-body">
+                            <div class="step-title">Database Sync</div>
+                            <div class="step-desc">Reads JSON files from shared folder<br>Upserts assets, CVEs and alerts into PostgreSQL</div>
+                            <div class="step-file">sync_db.py (runs here on Windows)</div>
+                        </div>
+                        <div class="step-status" id="ss-4"></div>
+                    </div>
+                </div>
+
+                <!-- Run button -->
+                <div class="mt-4 text-center">
+                    <button class="btn-ot btn-ot-green" id="run-btn" onclick="runPipeline()" style="font-size:13px;padding:12px 32px;letter-spacing:2px">
+                        <i class="bi bi-arrow-repeat"></i> SYNC DATABASE
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terminal output -->
+    <div class="col-12 col-xl-7">
+        <div class="panel h-100">
+            <div class="panel-header">
+                <span class="panel-title">Terminal Output</span>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <span id="terminal-status" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)">IDLE</span>
+                    <button class="btn-ot" onclick="clearTerminal()" style="font-size:10px;padding:3px 10px">CLEAR</button>
+                </div>
+            </div>
+            <div class="panel-body" style="padding:0">
+                <div class="terminal" id="terminal">
+                    <span class="t-info">CAVE-OT Pipeline Terminal</span><br>
+                    <span class="t-info">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span><br>
+                    <span style="color:var(--text-muted)">Click "RUN PIPELINE" to start the discovery and CVE mapping process.</span><br>
+                    <span style="color:var(--text-muted)">Results will be saved to the PostgreSQL database.</span><br>
+                    <br>
+                    <span class="t-info">$ _</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- DB Summary after run -->
+<div class="panel mt-3" id="post-run-summary" style="display:none">
+    <div class="panel-header">
+        <span class="panel-title">Database State After Run</span>
+    </div>
+    <div class="panel-body">
+        <div class="row g-3" id="post-run-stats"></div>
+    </div>
+</div>
+
+<style>
+.pipeline-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 14px;
+    transition: border-color 0.3s;
+}
+
+.pipeline-step.running {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 12px rgba(0,212,255,0.1);
+}
+
+.pipeline-step.done {
+    border-color: var(--accent-green);
+}
+
+.pipeline-step.error {
+    border-color: var(--accent-red);
+}
+
+.step-icon {
+    width: 36px; height: 36px;
+    background: rgba(0,212,255,0.08);
+    border: 1px solid rgba(0,212,255,0.2);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent-cyan);
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.step-body { flex: 1; }
+
+.step-title {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.step-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    line-height: 1.5;
+}
+
+.step-file {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--accent-orange);
+    margin-top: 4px;
+}
+
+.step-status {
+    font-size: 18px;
+    flex-shrink: 0;
+    width: 24px;
+    text-align: center;
+}
+
+.step-arrow {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 4px 0;
+}
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let running = false;
+
+function clearTerminal() {
+    document.getElementById('terminal').innerHTML =
+        '<span class="t-info">$ _</span>';
+}
+
+function termPrint(line, cls = '') {
+    const t = document.getElementById('terminal');
+    const span = document.createElement('span');
+    if (cls) span.className = cls;
+
+    // Color coding
+    if (line.startsWith('▶')) { span.className = 't-info'; }
+    else if (line.startsWith('✓') || line.includes('complete') || line.includes('SUCCESS')) { span.className = 't-ok'; }
+    else if (line.includes('ERROR') || line.includes('error') || line.includes('Traceback')) { span.className = 't-error'; }
+    else if (line.includes('WARNING') || line.includes('warn')) { span.className = 't-warn'; }
+    else if (line.startsWith('[stderr]')) { span.className = 't-warn'; }
+
+    span.textContent = line;
+    t.appendChild(span);
+    t.appendChild(document.createElement('br'));
+    t.scrollTop = t.scrollHeight;
+}
+
+function setStepState(n, state) {
+    const step = document.getElementById(`step-${n}`);
+    const status = document.getElementById(`ss-${n}`);
+    step.className = 'pipeline-step ' + state;
+    if (state === 'running') {
+        status.innerHTML = '<div class="ot-spinner"></div>';
+    } else if (state === 'done') {
+        status.innerHTML = '<i class="bi bi-check-circle-fill" style="color:var(--accent-green)"></i>';
+    } else if (state === 'error') {
+        status.innerHTML = '<i class="bi bi-x-circle-fill" style="color:var(--accent-red)"></i>';
+    } else {
+        status.innerHTML = '';
+    }
+}
+
+async function runPipeline() {
+    if (running) return;
+    running = true;
+
+    const btn = document.getElementById('run-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="ot-spinner" style="display:inline-block;margin-right:8px"></div> RUNNING...';
+    document.getElementById('terminal-status').textContent = 'RUNNING';
+    document.getElementById('terminal-status').style.color = 'var(--accent-cyan)';
+
+    // Steps 1-3 run on VM automatically — show as info, only animate step 4
+    [1,2,3].forEach(n => setStepState(n, 'done'));
+    setStepState(4, 'running');
+
+    clearTerminal();
+    termPrint('CAVE-OT Database Sync Starting...', 't-info');
+    termPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 't-info');
+    termPrint('Steps 1-3 run automatically on the Ubuntu VM.', '');
+    termPrint('Syncing latest results from shared folder...', 't-info');
+
+    try {
+        const r = await fetch('/api/pipeline/run', { method: 'POST' });
+        const data = await r.json();
+
+        setStepState(4, data.success ? 'done' : 'error');
+
+        (data.output || []).forEach(line => termPrint(line));
+
+        if (data.success) {
+            termPrint('', '');
+            termPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 't-ok');
+            termPrint('✓ PIPELINE COMPLETE — Database updated', 't-ok');
+            document.getElementById('terminal-status').textContent = 'COMPLETE';
+            document.getElementById('terminal-status').style.color = 'var(--accent-green)';
+            loadPostRunSummary();
+        } else {
+            termPrint('✗ PIPELINE FAILED', 't-error');
+            document.getElementById('terminal-status').textContent = 'FAILED';
+            document.getElementById('terminal-status').style.color = 'var(--accent-red)';
+        }
+    } catch (e) {
+        termPrint('✗ Request failed: ' + e.message, 't-error');
+        [1,2,3,4].forEach(n => setStepState(n, 'error'));
+        document.getElementById('terminal-status').textContent = 'ERROR';
+        document.getElementById('terminal-status').style.color = 'var(--accent-red)';
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> SYNC DATABASE';
+    running = false;
+}
+
+async function loadPostRunSummary() {
+    const r = await fetch('/api/summary');
+    const d = await r.json();
+    document.getElementById('post-run-summary').style.display = 'block';
+    document.getElementById('post-run-stats').innerHTML = [
+        { label: 'Total Assets',   val: d.total_assets,  color: 'cyan' },
+        { label: 'Active Assets',  val: d.active_assets, color: 'green' },
+        { label: 'Total CVEs',     val: d.total_cves,    color: 'orange' },
+        { label: 'Critical CVEs',  val: d.critical_cves, color: 'red' },
+    ].map(s => `
+        <div class="col-6 col-md-3">
+            <div class="stat-card ${s.color}">
+                <div class="stat-label">${s.label}</div>
+                <div class="stat-value ${s.color}">${s.val}</div>
+            </div>
+        </div>
+    `).join('');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,26 @@
+# Keeps the Docker build context small — engine/Dockerfile only needs
+# cave_monitor.py, attack_path.py, smart_discover.py, cve_discovery.py,
+# model/*.pkl, and docker/engine/ot-rules.rules; nothing else in the repo.
+.git/
+.kiro/
+.claude/
+tests/
+Dashboard/
+Database/
+CVE_Pipeline/
+Data_Processing/
+Model_Evaluation/
+Model_Training/
+Model Traning/
+Policy_Compliance/
+Testing/
+Reports/
+Datasets/
+NVD_Data/
+New folder/
+shared folder/
+docker/shared/
+vm_extra/
+Assets/
+*.pcap
+*.md

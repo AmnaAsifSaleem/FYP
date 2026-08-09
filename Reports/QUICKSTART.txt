@@ -1,0 +1,65 @@
+================================================================================
+CAVE-OT ML PIPELINE - QUICK START
+================================================================================
+
+STEP 1: VERIFY SETUP
+--------------------
+python check_setup.py
+
+This checks if all dependencies and datasets are in place.
+
+
+STEP 2: TRAIN MODELS (ONE-TIME, 5-10 MINUTES)
+----------------------------------------------
+python model_trainer.py
+
+Creates 6 model files in D:\Downloads\CAVE-OT Datasets\model\
+Shows validation tests with Schneider, Siemens, and Rockwell devices.
+
+
+STEP 3: TEST THE PIPELINE
+--------------------------
+python test_pipeline.py
+
+Runs the full pipeline on 3 sample OT devices.
+Verifies everything works correctly.
+
+
+STEP 4: RUN ON YOUR DATA
+-------------------------
+Create model_input.json with your devices, then:
+
+python cve_mapper.py      (maps devices to CVEs)
+python risk_scorer.py     (calculates risk scores)
+
+OR use the batch script:
+
+run_pipeline.bat
+
+
+OUTPUT
+------
+model_input.json is updated with CVE list and risk scores for each device.
+CVEs are sorted by risk score (highest first).
+
+
+NEED HELP?
+----------
+- Read SETUP_GUIDE.md for detailed instructions
+- Read FORMULAS.md for scoring algorithm details
+- Read README.md for architecture overview
+
+
+TROUBLESHOOTING
+---------------
+Error: "Models not found"
+  → Run: python model_trainer.py
+
+Error: "training_ready.csv not found"
+  → Verify datasets in D:\Downloads\CAVE-OT Datasets\
+
+Error: "No module named sklearn"
+  → Run: pip install -r requirements.txt
+
+
+================================================================================

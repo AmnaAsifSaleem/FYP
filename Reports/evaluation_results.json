@@ -1,0 +1,573 @@
+{
+  "metadata": {
+    "generated": "2026-03-12T21:30:05.953473",
+    "test_set_size": 1199,
+    "train_set_size": 4792,
+    "evaluation_method": "80/20 random split, IR metrics"
+  },
+  "overall_metrics": {
+    "hit@1": 0.8498748957464554,
+    "hit@5": 0.8949124270225187,
+    "hit@10": 0.9015846538782318,
+    "mrr": 0.8687907912678555,
+    "similarity_mean": 0.6361706206083707,
+    "similarity_median": 0.6603271763786805,
+    "similarity_std": 0.2594719248150344,
+    "similarity_min": 0.1020090373310654,
+    "similarity_max": 1.0
+  },
+  "per_vendor_metrics": [
+    {
+      "vendor": "wegia",
+      "count": 25,
+      "hit@1": 1.0,
+      "hit@5": 1.0,
+      "hit@10": 1.0,
+      "mrr": 1.0
+    },
+    {
+      "vendor": "tenda",
+      "count": 11,
+      "hit@1": 1.0,
+      "hit@5": 1.0,
+      "hit@10": 1.0,
+      "mrr": 1.0
+    },
+    {
+      "vendor": "codesys",
+      "count": 17,
+      "hit@1": 1.0,
+      "hit@5": 1.0,
+      "hit@10": 1.0,
+      "mrr": 1.0
+    },
+    {
+      "vendor": "mitsubishi electric",
+      "count": 23,
+      "hit@1": 1.0,
+      "hit@5": 1.0,
+      "hit@10": 1.0,
+      "mrr": 1.0
+    },
+    {
+      "vendor": "aveva",
+      "count": 9,
+      "hit@1": 1.0,
+      "hit@5": 1.0,
+      "hit@10": 1.0,
+      "mrr": 1.0
+    },
+    {
+      "vendor": "oretnom23",
+      "count": 5,
+      "hit@1": 1.0,
+      "hit@5": 1.0,
+      "hit@10": 1.0,
+      "mrr": 1.0
+    },
+    {
+      "vendor": "openrobotics",
+      "count": 7,
+      "hit@1": 1.0,
+      "hit@5": 1.0,
+      "hit@10": 1.0,
+      "mrr": 1.0
+    },
+    {
+      "vendor": "tibco",
+      "count": 5,
+      "hit@1": 1.0,
+      "hit@5": 1.0,
+      "hit@10": 1.0,
+      "mrr": 1.0
+    },
+    {
+      "vendor": "siemens",
+      "count": 337,
+      "hit@1": 0.9881305637982196,
+      "hit@5": 0.9970326409495549,
+      "hit@10": 1.0,
+      "mrr": 0.9913452027695352
+    },
+    {
+      "vendor": "rockwell automation",
+      "count": 51,
+      "hit@1": 0.9803921568627451,
+      "hit@5": 1.0,
+      "hit@10": 1.0,
+      "mrr": 0.9901960784313726
+    },
+    {
+      "vendor": "schneider electric",
+      "count": 137,
+      "hit@1": 0.9562043795620438,
+      "hit@5": 1.0,
+      "hit@10": 1.0,
+      "mrr": 0.9734793187347932
+    },
+    {
+      "vendor": "advantech",
+      "count": 55,
+      "hit@1": 0.9454545454545454,
+      "hit@5": 0.9636363636363636,
+      "hit@10": 0.9636363636363636,
+      "mrr": 0.9545454545454546
+    },
+    {
+      "vendor": "wago",
+      "count": 17,
+      "hit@1": 0.9411764705882353,
+      "hit@5": 0.9411764705882353,
+      "hit@10": 1.0,
+      "mrr": 0.9495798319327731
+    },
+    {
+      "vendor": "phoenix contact",
+      "count": 15,
+      "hit@1": 0.9333333333333333,
+      "hit@5": 1.0,
+      "hit@10": 1.0,
+      "mrr": 0.9555555555555555
+    },
+    {
+      "vendor": "delta electronics",
+      "count": 40,
+      "hit@1": 0.925,
+      "hit@5": 1.0,
+      "hit@10": 1.0,
+      "mrr": 0.9508333333333334
+    },
+    {
+      "vendor": "omron",
+      "count": 13,
+      "hit@1": 0.9230769230769231,
+      "hit@5": 0.9230769230769231,
+      "hit@10": 0.9230769230769231,
+      "mrr": 0.9230769230769231
+    },
+    {
+      "vendor": "moxa",
+      "count": 64,
+      "hit@1": 0.921875,
+      "hit@5": 0.96875,
+      "hit@10": 0.96875,
+      "mrr": 0.9401041666666667
+    },
+    {
+      "vendor": "yokogawa",
+      "count": 12,
+      "hit@1": 0.9166666666666666,
+      "hit@5": 1.0,
+      "hit@10": 1.0,
+      "mrr": 0.9583333333333334
+    },
+    {
+      "vendor": "abb",
+      "count": 22,
+      "hit@1": 0.8636363636363636,
+      "hit@5": 0.9545454545454546,
+      "hit@10": 0.9545454545454546,
+      "mrr": 0.893939393939394
+    },
+    {
+      "vendor": "softlabbd",
+      "count": 5,
+      "hit@1": 0.8,
+      "hit@5": 1.0,
+      "hit@10": 1.0,
+      "mrr": 0.9
+    },
+    {
+      "vendor": "honeywell",
+      "count": 22,
+      "hit@1": 0.7272727272727273,
+      "hit@5": 0.8181818181818182,
+      "hit@10": 0.8181818181818182,
+      "mrr": 0.7651515151515151
+    },
+    {
+      "vendor": "emerson",
+      "count": 18,
+      "hit@1": 0.7222222222222222,
+      "hit@5": 0.8333333333333334,
+      "hit@10": 0.8333333333333334,
+      "mrr": 0.7777777777777778
+    },
+    {
+      "vendor": "ge",
+      "count": 7,
+      "hit@1": 0.7142857142857143,
+      "hit@5": 0.7142857142857143,
+      "hit@10": 1.0,
+      "mrr": 0.7444444444444445
+    },
+    {
+      "vendor": "zabbix",
+      "count": 15,
+      "hit@1": 0.5333333333333333,
+      "hit@5": 0.8,
+      "hit@10": 0.9333333333333333,
+      "mrr": 0.6706349206349207
+    },
+    {
+      "vendor": "hitachienergy",
+      "count": 11,
+      "hit@1": 0.45454545454545453,
+      "hit@5": 0.9090909090909091,
+      "hit@10": 0.9090909090909091,
+      "mrr": 0.6515151515151515
+    }
+  ],
+  "new_device_tests": [
+    {
+      "query": "siemens simatic s7-1200 v4.1 profinet",
+      "top_3": [
+        {
+          "rank": 1,
+          "cve_id": "CVE-2016-2846",
+          "vendor": "siemens",
+          "product": "simatic s7 1200 cpu",
+          "cvss": 6.5,
+          "epss": 0.00194,
+          "kev": 0,
+          "similarity": 0.5600642374069874
+        },
+        {
+          "rank": 2,
+          "cve_id": "CVE-2018-13800",
+          "vendor": "siemens",
+          "product": "simatic s7 1200 v4",
+          "cvss": 7.3,
+          "epss": 0.00191,
+          "kev": 0,
+          "similarity": 0.46967546563494034
+        },
+        {
+          "rank": 3,
+          "cve_id": "CVE-2016-3949",
+          "vendor": "siemens",
+          "product": "simatic s7 300 with profitnet support",
+          "cvss": 7.5,
+          "epss": 0.04865,
+          "kev": 0,
+          "similarity": 0.4090433006306714
+        }
+      ]
+    },
+    {
+      "query": "schneider electric modicon m580 2.80 modbus",
+      "top_3": [
+        {
+          "rank": 1,
+          "cve_id": "CVE-2019-6848",
+          "vendor": "schneider electric",
+          "product": "modicon m580",
+          "cvss": 8.6,
+          "epss": 0.00459,
+          "kev": 0,
+          "similarity": 0.3864171719033641
+        },
+        {
+          "rank": 2,
+          "cve_id": "CVE-2020-7543",
+          "vendor": "schneider electric",
+          "product": "modicon m580 bmep584040",
+          "cvss": 7.5,
+          "epss": 0.00389,
+          "kev": 0,
+          "similarity": 0.3756898958672016
+        },
+        {
+          "rank": 3,
+          "cve_id": "CVE-2020-7537",
+          "vendor": "schneider electric",
+          "product": "modicon m580 bmep584040",
+          "cvss": 7.5,
+          "epss": 0.00389,
+          "kev": 0,
+          "similarity": 0.3756898958672016
+        }
+      ]
+    },
+    {
+      "query": "rockwell automation controllogix 1756 ethernet ip",
+      "top_3": [
+        {
+          "rank": 1,
+          "cve_id": "CVE-2018-19016",
+          "vendor": "rockwell automation",
+          "product": "ethernet\\/ip web 1756 eweb",
+          "cvss": 7.5,
+          "epss": 0.00041,
+          "kev": 0,
+          "similarity": 0.5506539800339367
+        },
+        {
+          "rank": 2,
+          "cve_id": "CVE-2024-34026",
+          "vendor": "openplcproject",
+          "product": "openplc v3",
+          "cvss": 9.0,
+          "epss": 0.08703,
+          "kev": 0,
+          "similarity": 0.4064646800774606
+        },
+        {
+          "rank": 3,
+          "cve_id": "CVE-2023-3596",
+          "vendor": "rockwell automation",
+          "product": "1756 en4tr",
+          "cvss": 7.5,
+          "epss": 0.01659,
+          "kev": 0,
+          "similarity": 0.4008927223191462
+        }
+      ]
+    },
+    {
+      "query": "advantech webaccess scada 8.4 http",
+      "top_3": [
+        {
+          "rank": 1,
+          "cve_id": "CVE-2025-46268",
+          "vendor": "advantech",
+          "product": "webaccess\\/scada",
+          "cvss": 6.3,
+          "epss": 0.00039,
+          "kev": 0,
+          "similarity": 0.4190967031861099
+        },
+        {
+          "rank": 2,
+          "cve_id": "CVE-2018-5443",
+          "vendor": "advantech",
+          "product": "webaccess\\/scada",
+          "cvss": 5.3,
+          "epss": 0.00135,
+          "kev": 0,
+          "similarity": 0.4184627996023532
+        },
+        {
+          "rank": 3,
+          "cve_id": "CVE-2025-14850",
+          "vendor": "advantech",
+          "product": "webaccess\\/scada",
+          "cvss": 8.1,
+          "epss": 0.00553,
+          "kev": 0,
+          "similarity": 0.4014902378870001
+        }
+      ]
+    },
+    {
+      "query": "moxa nport 5150 serial device server",
+      "top_3": [
+        {
+          "rank": 1,
+          "cve_id": "CVE-2017-16715",
+          "vendor": "moxa",
+          "product": "nport 5110",
+          "cvss": 7.5,
+          "epss": 0.00245,
+          "kev": 0,
+          "similarity": 0.2795093767749348
+        },
+        {
+          "rank": 2,
+          "cve_id": "CVE-2017-14028",
+          "vendor": "moxa",
+          "product": "nport 5110",
+          "cvss": 7.5,
+          "epss": 0.00424,
+          "kev": 0,
+          "similarity": 0.27592675315764614
+        },
+        {
+          "rank": 3,
+          "cve_id": "CVE-2017-16719",
+          "vendor": "moxa",
+          "product": "nport 5110",
+          "cvss": 7.5,
+          "epss": 0.00312,
+          "kev": 0,
+          "similarity": 0.27223479358897357
+        }
+      ]
+    },
+    {
+      "query": "abb ac500 plc modbus tcp",
+      "top_3": [
+        {
+          "rank": 1,
+          "cve_id": "CVE-2022-28613",
+          "vendor": "abb",
+          "product": "rtu500",
+          "cvss": 7.5,
+          "epss": 0.00446,
+          "kev": 0,
+          "similarity": 0.3255150434519717
+        },
+        {
+          "rank": 2,
+          "cve_id": "CVE-2022-2081",
+          "vendor": "hitachienergy",
+          "product": "rtu520",
+          "cvss": 7.5,
+          "epss": 0.00155,
+          "kev": 0,
+          "similarity": 0.31482597933322753
+        },
+        {
+          "rank": 3,
+          "cve_id": "CVE-2023-0027",
+          "vendor": "rockwell automation",
+          "product": "modbus tcp add on instructions",
+          "cvss": 5.3,
+          "epss": 0.00054,
+          "kev": 0,
+          "similarity": 0.2782392952686599
+        }
+      ]
+    },
+    {
+      "query": "delta electronics dvp plc modbus",
+      "top_3": [
+        {
+          "rank": 1,
+          "cve_id": "CVE-2018-10594",
+          "vendor": "delta electronics",
+          "product": "commgr",
+          "cvss": 9.8,
+          "epss": 0.78242,
+          "kev": 0,
+          "similarity": 0.38484183562416396
+        },
+        {
+          "rank": 2,
+          "cve_id": "CVE-2025-62581",
+          "vendor": "delta electronics",
+          "product": "diaview",
+          "cvss": 9.8,
+          "epss": 0.00022,
+          "kev": 0,
+          "similarity": 0.3628573839839514
+        },
+        {
+          "rank": 3,
+          "cve_id": "CVE-2025-62582",
+          "vendor": "delta electronics",
+          "product": "diaview",
+          "cvss": 9.8,
+          "epss": 0.00022,
+          "kev": 0,
+          "similarity": 0.3628573839839514
+        }
+      ]
+    },
+    {
+      "query": "mitsubishi electric melsec iq-r ethernet",
+      "top_3": [
+        {
+          "rank": 1,
+          "cve_id": "CVE-2022-25156",
+          "vendor": "mitsubishi electric",
+          "product": "fx5uc",
+          "cvss": 8.1,
+          "epss": 0.00388,
+          "kev": 0,
+          "similarity": 0.6423717167942515
+        },
+        {
+          "rank": 2,
+          "cve_id": "CVE-2021-20611",
+          "vendor": "mitsubishi electric",
+          "product": "melsec iq r r00 cpu",
+          "cvss": 7.5,
+          "epss": 0.00431,
+          "kev": 0,
+          "similarity": 0.5948684687810727
+        },
+        {
+          "rank": 3,
+          "cve_id": "CVE-2022-25160",
+          "vendor": "mitsubishi electric",
+          "product": "fx5uc",
+          "cvss": 5.9,
+          "epss": 0.00352,
+          "kev": 0,
+          "similarity": 0.5891245668116329
+        }
+      ]
+    },
+    {
+      "query": "codesys runtime v3.5 industrial",
+      "top_3": [
+        {
+          "rank": 1,
+          "cve_id": "CVE-2020-12069",
+          "vendor": "pilz",
+          "product": "pmc",
+          "cvss": 7.8,
+          "epss": 0.00076,
+          "kev": 0,
+          "similarity": 0.2712902013323869
+        },
+        {
+          "rank": 2,
+          "cve_id": "CVE-2020-10245",
+          "vendor": "codesys",
+          "product": "control for beaglebone",
+          "cvss": 9.8,
+          "epss": 0.0141,
+          "kev": 0,
+          "similarity": 0.2684338195132454
+        },
+        {
+          "rank": 3,
+          "cve_id": "CVE-2019-18858",
+          "vendor": "codesys",
+          "product": "control for beaglebone",
+          "cvss": 9.8,
+          "epss": 0.00409,
+          "kev": 0,
+          "similarity": 0.244404480008164
+        }
+      ]
+    },
+    {
+      "query": "wago 750 plc modbus",
+      "top_3": [
+        {
+          "rank": 1,
+          "cve_id": "CVE-2019-10712",
+          "vendor": "wago",
+          "product": "750 830",
+          "cvss": 9.8,
+          "epss": 0.01483,
+          "kev": 0,
+          "similarity": 0.4036706436717013
+        },
+        {
+          "rank": 2,
+          "cve_id": "CVE-2020-12505",
+          "vendor": "wago",
+          "product": "750 852",
+          "cvss": 8.2,
+          "epss": 0.00269,
+          "kev": 0,
+          "similarity": 0.34940618883980656
+        },
+        {
+          "rank": 3,
+          "cve_id": "CVE-2023-1150",
+          "vendor": "wago",
+          "product": "750 363\\/040 000",
+          "cvss": 7.5,
+          "epss": 0.00203,
+          "kev": 0,
+          "similarity": 0.3046083195842225
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,242 @@
+[
+  {
+    "ip": "127.0.0.1",
+    "port": 443,
+    "service": "HTTPS",
+    "device_type": "Historian",
+    "zone": "IT",
+    "vendor": "OSIsoft",
+    "product": "PI Server",
+    "firmware": "3.4.400",
+    "description": "Plant data historian secure web interface",
+    "criticality": 0.6,
+    "packet_count": 21,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  },
+  {
+    "ip": "127.0.0.1",
+    "port": 2222,
+    "service": "SSH",
+    "device_type": "Engineering_WS",
+    "zone": "IT",
+    "vendor": "Cisco",
+    "product": "ASA Firewall",
+    "firmware": "9.16.4",
+    "description": "Network DMZ gateway SSH management",
+    "criticality": 0.55,
+    "packet_count": 20,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  },
+  {
+    "ip": "127.0.0.1",
+    "port": 502,
+    "service": "Modbus",
+    "device_type": "Dosing_Pump_PLC",
+    "zone": "OT",
+    "vendor": "Schneider Electric",
+    "product": "Modicon M340",
+    "firmware": "2.39",
+    "description": "Chemical dosing pump controller",
+    "criticality": 0.97,
+    "packet_count": 20,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  },
+  {
+    "ip": "127.0.0.1",
+    "port": 10201,
+    "service": "S7comm",
+    "device_type": "Filtration_PLC",
+    "zone": "OT",
+    "vendor": "Siemens",
+    "product": "S7-300",
+    "firmware": "V3.2.5",
+    "description": "Water filtration system PLC",
+    "criticality": 0.98,
+    "packet_count": 20,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  },
+  {
+    "ip": "127.0.0.1",
+    "port": 47808,
+    "service": "BACnet",
+    "device_type": "Ventilation_Controller",
+    "zone": "OT",
+    "vendor": "Siemens",
+    "product": "APOGEE PXC",
+    "firmware": "1.2",
+    "description": "Chemical storage ventilation",
+    "criticality": 0.55,
+    "packet_count": 4,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  },
+  {
+    "ip": "127.0.0.1",
+    "port": 20000,
+    "service": "DNP3",
+    "device_type": "Water_Level_RTU",
+    "zone": "OT",
+    "vendor": "General Electric",
+    "product": "D20MX",
+    "firmware": "8.0",
+    "description": "Remote water level RTU",
+    "criticality": 0.9,
+    "packet_count": 20,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  },
+  {
+    "ip": "127.0.0.1",
+    "port": 5020,
+    "service": "Modbus",
+    "device_type": "WaterQuality_Sensor",
+    "zone": "OT",
+    "vendor": "Schneider Electric",
+    "product": "Modicon M221",
+    "firmware": "1.8",
+    "description": "Water quality sensor controller",
+    "criticality": 0.88,
+    "packet_count": 11,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  },
+  {
+    "ip": "127.0.0.1",
+    "port": 6230,
+    "service": "IPMI",
+    "device_type": "SCADA_Server",
+    "zone": "IT",
+    "vendor": "Dell",
+    "product": "iDRAC 8",
+    "firmware": "2.40.40",
+    "description": "SCADA server remote management",
+    "criticality": 0.95,
+    "packet_count": 10,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  },
+  {
+    "ip": "127.0.0.1",
+    "port": 80,
+    "service": "HTTP",
+    "device_type": "HMI_Interface",
+    "zone": "IT",
+    "vendor": "Siemens",
+    "product": "WinCC OA",
+    "firmware": "3.17",
+    "description": "Plant engineer HMI web interface",
+    "criticality": 0.7,
+    "packet_count": 10,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  },
+  {
+    "ip": "127.0.0.1",
+    "port": 5031,
+    "service": "Modbus",
+    "device_type": "Turbidity_Sensor_PLC",
+    "zone": "OT",
+    "vendor": "Schneider Electric",
+    "product": "Modicon M221",
+    "firmware": "1.6",
+    "description": "Water turbidity monitoring sensor",
+    "criticality": 0.84,
+    "packet_count": 10,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  },
+  {
+    "ip": "127.0.0.1",
+    "port": 5032,
+    "service": "Modbus",
+    "device_type": "UV_Disinfection_PLC",
+    "zone": "OT",
+    "vendor": "Schneider Electric",
+    "product": "Modicon M340",
+    "firmware": "2.10",
+    "description": "UV disinfection system controller",
+    "criticality": 0.96,
+    "packet_count": 10,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  },
+  {
+    "ip": "127.0.0.1",
+    "port": 20001,
+    "service": "DNP3",
+    "device_type": "Flow_Meter_RTU",
+    "zone": "OT",
+    "vendor": "General Electric",
+    "product": "D20MX",
+    "firmware": "7.5",
+    "description": "Distribution network flow meter RTU",
+    "criticality": 0.87,
+    "packet_count": 10,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  },
+  {
+    "ip": "127.0.0.1",
+    "port": 8080,
+    "service": "HTTP",
+    "device_type": "Backup_HMI_Interface",
+    "zone": "IT",
+    "vendor": "Siemens",
+    "product": "WinCC OA",
+    "firmware": "3.15",
+    "description": "Backup HMI for emergency operations",
+    "criticality": 0.65,
+    "packet_count": 11,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  },
+  {
+    "ip": "127.0.0.1",
+    "port": 10203,
+    "service": "S7comm",
+    "device_type": "Reservoir_Level_PLC",
+    "zone": "OT",
+    "vendor": "Siemens",
+    "product": "S7-1200",
+    "firmware": "V4.1",
+    "description": "Reservoir water level controller",
+    "criticality": 0.91,
+    "packet_count": 11,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  },
+  {
+    "ip": "127.0.0.1",
+    "port": 10204,
+    "service": "S7comm",
+    "device_type": "Booster_Pump_PLC",
+    "zone": "OT",
+    "vendor": "Siemens",
+    "product": "S7-300",
+    "firmware": "V3.1",
+    "description": "Booster pump station controller",
+    "criticality": 0.93,
+    "packet_count": 10,
+    "talkers": [
+      "127.0.0.1"
+    ]
+  }
+]

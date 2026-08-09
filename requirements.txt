@@ -1,0 +1,16 @@
+pandas
+numpy
+scikit-learn
+joblib
+tqdm
+requests
+
+# Host-side pipeline (Dashboard, file_watcher, sync_db, attack_path)
+flask
+psycopg2-binary
+networkx
+watchdog
+
+# Remediation Advisor (Dashboard/remediation_api.py, Remediation/remediation_advisor.py)
+google-genai
+pydantic

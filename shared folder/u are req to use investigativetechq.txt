@@ -1,0 +1,42 @@
+u are req to use investigativetechqniues to carry out ur own digi fornc exam ain and analysis of the firenscis image provided as oart of this asseseen=my 
+this image represents a copy of a signle hard dis that swas seized dueing an inveistigation, u should treat its as a genione digi evidence just as u would in a real foren case. u can assume that all neceassay procudes to do are alredy done. 
+the md5 and sha1 hash is given
+u are expected to carefully examine the evidence to unconver any info  u are expected to use appropi=riate tools justify ur choices and explain u =r reasoning thoruoghouyt
+
+q1
+for the image, u are req to use ftk imager and have to verify thr disk image . u have to include all streps to verify and sscresnhots
+
+q2
+u have to exract the registry files and do analysis using registry softewares like preg explorer/viewer and answer the folloe
+what is the computer name of the system
+2 identift yhe os and provided etails in follows
+a product name 
+b version
+c build no
+d registered owner
+e install date
+f system root
+3 what is the last logged in user name
+4 list all users acc in sys table format
+a username 
+b rid
+c admistrator tru or flase
+d login count
+e password hint
+f last login
+5identify the system tme zone settings state the registry key path and wxplain why timezone info is significant in forensics
+
+q3u are required to answer all 
+1 analyse email artefacts and identify any comm that may indicate sus activity
+include full email content sender/recv details, timestamps, and atatachments, procive a wirttin explaination of why email is consdi sus
+2 examine installed programs and identify any tools that coidl be used for ncryption or data hiding. for each tool exaplin its purpose
+3 anylse the web browsing history and identify thr most sus search along with its timestamp.
+4 examine the recycle bin and identify the deleted fiels relevant to the investigation include original file paths deleteion timestamps and file sized.
+5 identify recently access docs and determine which files appears most sus. justify
+6 examine the users desktop and identify ant doc which appears most sus. justify
+7 examine the files in the desktop docs and wonloads folders. identify any doc tht indicates intent or awareness of onvestigation and explain findings.
+8 using autopsy image gallery and file type filetering, examine all imgaes and media fie=le present on the system. identify any images or videos that appear sus, hidden or password protectd . for each sus file provide its full filepatha nd file nae, file size and mime type, created modif, accessed timestamps(mac time) and md5 hash
+discuss wheater any files have had their ext changed to disguide their tru file typye.
+9locate and examine windows [refetch files(c/windows/prefetch) using autopsy.n for each file found provede its app name and prefetch filename, run count, last run timestamps, files and dir 
+identify any prefetch entires linked to programs found elsewhere in the investigation. explain how prefetch evidence proves exeexuction even if the original file has ben dleted.
+10 outline youtr own conclusion of ur forences investigation based on your findigsns. u should also define what type of crimmes u believe your investigation is linked to if any

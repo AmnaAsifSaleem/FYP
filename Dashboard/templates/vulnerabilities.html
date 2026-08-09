@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}Vulnerabilities{% endblock %}
+{% block page_heading %}Vulnerabilities{% endblock %}
+
+{% block content %}
+
+<div class="section-heading">Vulnerability Intelligence</div>
+
+<!-- Filter + search bar -->
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+    <div class="filter-bar mb-0">
+        <button class="filter-btn active"         onclick="setTier('', this)">ALL</button>
+        <button class="filter-btn f-critical"     onclick="setTier('CRITICAL', this)">CRITICAL</button>
+        <button class="filter-btn f-high"         onclick="setTier('HIGH', this)">HIGH</button>
+        <button class="filter-btn f-medium"       onclick="setTier('MEDIUM', this)">MEDIUM</button>
+        <button class="filter-btn f-low"          onclick="setTier('LOW', this)">LOW</button>
+    </div>
+    <input class="ot-search ms-auto" type="text" id="vuln-search"
+           placeholder="Search CVE ID / vendor / product..."
+           oninput="searchVulns(this.value)" style="width:280px">
+</div>
+
+<!-- Stats mini row -->
+<div class="row g-2 mb-3" id="vuln-stats">
+    <div class="col-6 col-md-3">
+        <div style="background:rgba(255,51,85,0.08);border:1px solid rgba(255,51,85,0.2);border-radius:4px;padding:12px;text-align:center">
+            <div style="font-family:'Orbitron',monospace;font-size:22px;color:var(--critical)" id="vs-critical">—</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)">CRITICAL</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div style="background:rgba(255,140,0,0.08);border:1px solid rgba(255,140,0,0.2);border-radius:4px;padding:12px;text-align:center">
+            <div style="font-family:'Orbitron',monospace;font-size:22px;color:var(--high)" id="vs-high">—</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)">HIGH</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div style="background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.2);border-radius:4px;padding:12px;text-align:center">
+            <div style="font-family:'Orbitron',monospace;font-size:22px;color:var(--medium)" id="vs-medium">—</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)">MEDIUM</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div style="background:rgba(0,255,136,0.06);border:1px solid rgba(0,255,136,0.15);border-radius:4px;padding:12px;text-align:center">
+            <div style="font-family:'Orbitron',monospace;font-size:22px;color:var(--low)" id="vs-low">—</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)">LOW</div>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="panel">
+    <div class="panel-header">
+        <span class="panel-title">CVE Database</span>
+        <span id="vuln-count" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-muted)">Loading...</span>
+    </div>
+    <div id="vuln-loading" class="text-center py-5">
+        <div class="ot-spinner" style="width:32px;height:32px;border-width:3px"></div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-muted);margin-top:12px">LOADING CVEs...</div>
+    </div>
+    <div id="vuln-table-wrap" style="display:none;overflow-x:auto">
+        <table class="ot-table">
+            <thead>
+                <tr>
+                    <th onclick="sortBy('cve_id')" style="cursor:pointer">CVE ID ↕</th>
+                    <th>Device</th>
+                    <th>Zone</th>
+                    <th onclick="sortBy('cvss')" style="cursor:pointer">CVSS ↕</th>
+                    <th onclick="sortBy('epss')" style="cursor:pointer">EPSS ↕</th>
+                    <th onclick="sortBy('risk_score')" style="cursor:pointer">Risk Score ↕</th>
+                    <th>Tier</th>
+                    <th>CIA</th>
+                    <th>Discovered</th>
+                </tr>
+            </thead>
+            <tbody id="vuln-tbody"></tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allVulns = [];
+let sortKey = 'risk_score';
+let sortAsc = false;
+let currentTier = '';
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadSummaryStats();
+    loadVulns('');
+});
+
+async function loadSummaryStats() {
+    const r = await fetch('/api/summary');
+    const d = await r.json();
+    document.getElementById('vs-critical').textContent = d.critical_cves;
+    document.getElementById('vs-high').textContent = d.high_cves;
+    document.getElementById('vs-medium').textContent = d.medium_cves;
+    document.getElementById('vs-low').textContent = d.low_cves;
+}
+
+async function loadVulns(tier) {
+    document.getElementById('vuln-loading').style.display = 'block';
+    document.getElementById('vuln-table-wrap').style.display = 'none';
+    const url = tier ? `/api/vulnerabilities?tier=${tier}&limit=500` : '/api/vulnerabilities?limit=500';
+    const r = await fetch(url);
+    allVulns = await r.json();
+    document.getElementById('vuln-loading').style.display = 'none';
+    document.getElementById('vuln-table-wrap').style.display = 'block';
+    renderVulns(allVulns);
+}
+
+function setTier(tier, btn) {
+    currentTier = tier;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadVulns(tier);
+}
+
+function searchVulns(q) {
+    q = q.toLowerCase();
+    const filtered = allVulns.filter(v =>
+        v.cve_id.toLowerCase().includes(q) ||
+        (v.vendor || '').toLowerCase().includes(q) ||
+        (v.product || '').toLowerCase().includes(q)
+    );
+    renderVulns(filtered);
+}
+
+function sortBy(key) {
+    if (sortKey === key) sortAsc = !sortAsc;
+    else { sortKey = key; sortAsc = false; }
+    const sorted = [...allVulns].sort((a, b) => {
+        const av = a[key] || 0, bv = b[key] || 0;
+        if (typeof av === 'string') return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+        return sortAsc ? av - bv : bv - av;
+    });
+    renderVulns(sorted);
+}
+
+function renderVulns(data) {
+    document.getElementById('vuln-count').textContent = `${data.length} CVEs`;
+    const tbody = document.getElementById('vuln-tbody');
+    if (!data.length) {
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-5" style="color:var(--text-muted);font-family:'Share Tech Mono',monospace;font-size:12px">NO VULNERABILITIES FOUND</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = data.map(v => `
+        <tr>
+            <td>
+                <a href="https://nvd.nist.gov/vuln/detail/${v.cve_id}" target="_blank"
+                   style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent-cyan);text-decoration:none"
+                   onmouseover="this.style.textDecoration='underline'"
+                   onmouseout="this.style.textDecoration='none'">
+                    ${v.cve_id}
+                </a>
+                ${v.kev ? `<span style="margin-left:6px;font-family:'Share Tech Mono',monospace;font-size:9px;font-weight:700;color:var(--accent-red);background:rgba(255,51,85,0.15);border:1px solid rgba(255,51,85,0.4);border-radius:2px;padding:2px 5px" title="CISA Known Exploited Vulnerabilities catalog — actively being exploited in the wild">KEV</span>` : ''}
+            </td>
+            <td>
+                <div style="font-weight:600;font-size:13px">${v.vendor}</div>
+                <div style="font-size:11px;color:var(--text-muted)">${v.product} · ${v.ip}:${v.port}</div>
+            </td>
+            <td><span class="zone-${v.zone}">${v.zone}</span></td>
+            <td>
+                <span style="font-family:'Share Tech Mono',monospace;font-size:13px;font-weight:600;color:${riskColor(v.cvss)}">${v.cvss}</span>
+            </td>
+            <td>
+                <div style="font-family:'Share Tech Mono',monospace;font-size:12px">${(v.epss*100).toFixed(2)}%</div>
+                <div style="font-size:10px;color:var(--text-muted)">exploit prob</div>
+            </td>
+            <td style="min-width:140px">${riskBar(v.risk_score)}</td>
+            <td>${tierBadge(v.risk_tier)}</td>
+            <td>
+                <span style="font-family:'Share Tech Mono',monospace;font-size:10px">
+                    <span style="color:var(--accent-red)">C</span>
+                    <span style="color:var(--text-muted)">:</span>
+                    <span>${v.c_impact||0}</span>
+                    <span style="color:var(--accent-orange);margin-left:4px">I</span>
+                    <span style="color:var(--text-muted)">:</span>
+                    <span>${v.i_impact||0}</span>
+                    <span style="color:var(--accent-yellow);margin-left:4px">A</span>
+                    <span style="color:var(--text-muted)">:</span>
+                    <span>${v.a_impact||0}</span>
+                </span>
+            </td>
+            <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);white-space:nowrap">
+                ${v.discovered_at ? v.discovered_at.substring(0,10) : '—'}
+            </td>
+        </tr>
+    `).join('');
+}
+</script>
+{% endblock %}

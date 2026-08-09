@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_heading %}Dashboard{% endblock %}
+
+{% block content %}
+
+<div id="dash-live" style="display:none">
+
+<!-- Stat cards row -->
+<div class="row g-3 mb-4" id="stat-cards">
+    <div class="col-6 col-xl-3">
+        <div class="stat-card cyan">
+            <div class="stat-label">Total Assets</div>
+            <div class="stat-value cyan" id="s-total-assets">—</div>
+            <div class="stat-sub" id="s-active-assets">— active</div>
+            <i class="bi bi-hdd-network stat-icon" style="color:var(--accent-cyan)"></i>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card red">
+            <div class="stat-label">Critical CVEs</div>
+            <div class="stat-value red" id="s-critical">—</div>
+            <div class="stat-sub" id="s-high">— high severity</div>
+            <i class="bi bi-shield-fill-exclamation stat-icon" style="color:var(--accent-red)"></i>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card orange">
+            <div class="stat-label">Total CVEs</div>
+            <div class="stat-value orange" id="s-total-cves">—</div>
+            <div class="stat-sub" id="s-kev"></div>
+            <div id="s-kev-list" style="margin-top:4px"></div>
+            <i class="bi bi-bug-fill stat-icon" style="color:var(--accent-orange)"></i>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card green">
+            <div class="stat-label">Active Alerts</div>
+            <div class="stat-value green" id="s-alerts">—</div>
+            <div class="stat-sub" id="s-attacks">— active attacks</div>
+            <i class="bi bi-bell-fill stat-icon" style="color:var(--accent-green)"></i>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card purple">
+            <div class="stat-label">Anomalous Assets</div>
+            <div class="stat-value purple" id="s-anomalous">—</div>
+            <div class="stat-sub">unusual behavior, no CVE required</div>
+            <i class="bi bi-radar stat-icon" style="color:#b968ff"></i>
+        </div>
+    </div>
+</div>
+
+<!-- Charts row -->
+<div class="row g-3 mb-4">
+    <!-- CVEs per device bar chart -->
+    <div class="col-12 col-xl-7">
+        <div class="panel h-100">
+            <div class="panel-header">
+                <span class="panel-title">CVE Distribution by Device</span>
+                <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)">STACKED BY SEVERITY</span>
+            </div>
+            <div class="panel-body">
+                <div class="chart-container" style="height:260px">
+                    <canvas id="chart-cves-per-device"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Risk tier donut -->
+    <div class="col-12 col-xl-5">
+        <div class="panel h-100">
+            <div class="panel-header">
+                <span class="panel-title">Risk Tier Distribution</span>
+                <span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)">ALL CVEs</span>
+            </div>
+            <div class="panel-body d-flex align-items-center justify-content-center">
+                <div class="chart-container" style="height:260px;max-width:300px">
+                    <canvas id="chart-risk-donut"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Second charts row -->
+<div class="row g-3 mb-4">
+    <!-- CVSS distribution -->
+    <div class="col-12 col-md-6">
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">CVSS Score Ranges</span>
+            </div>
+            <div class="panel-body">
+                <div class="chart-container" style="height:200px">
+                    <canvas id="chart-cvss"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Zone risk -->
+    <div class="col-12 col-md-6">
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">IT vs OT Zone Risk</span>
+            </div>
+            <div class="panel-body">
+                <div class="chart-container" style="height:200px">
+                    <canvas id="chart-zone"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top critical CVEs table -->
+<div class="panel">
+    <div class="panel-header">
+        <span class="panel-title">Top Critical Vulnerabilities</span>
+        <a href="/vulnerabilities" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-cyan);text-decoration:none">VIEW ALL →</a>
+    </div>
+    <div class="panel-body" style="padding:0">
+        <div id="top-cves-loading" class="text-center py-4">
+            <div class="ot-spinner"></div>
+        </div>
+        <div id="top-cves-wrap" style="display:none;overflow-x:auto">
+            <table class="ot-table">
+                <thead>
+                    <tr>
+                        <th>CVE ID</th>
+                        <th>Device</th>
+                        <th>Zone</th>
+                        <th>CVSS</th>
+                        <th>EPSS</th>
+                        <th>Risk Score</th>
+                        <th>Tier</th>
+                    </tr>
+                </thead>
+                <tbody id="top-cves-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</div><!-- /#dash-live -->
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.CaveOT = window.CaveOT || {};
+
+let dashRefreshTimer = null;
+
+// Smooth count-up for the stat card numbers instead of an instant jump.
+function countUp(el, target, durationMs = 800) {
+    const start = 0;
+    const startTime = performance.now();
+    const isInt = Number.isInteger(target);
+    function tick(now) {
+        const t = Math.min(1, (now - startTime) / durationMs);
+        const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+        const val = start + (target - start) * eased;
+        el.textContent = isInt ? Math.round(val) : val.toFixed(1);
+        if (t < 1) requestAnimationFrame(tick);
+        else el.textContent = target;
+    }
+    requestAnimationFrame(tick);
+}
+
+CaveOT.onScanState(async (running, changed) => {
+    if (running) {
+        CaveOT.hideOverlay();
+        document.getElementById('dash-live').style.display = 'block';
+        await Promise.all([loadSummary(), loadCharts(), loadTopCVEs()]);
+        if (!dashRefreshTimer) {
+            dashRefreshTimer = setInterval(() => { loadSummary(); }, 30000);
+        }
+    } else {
+        document.getElementById('dash-live').style.display = 'none';
+        if (dashRefreshTimer) {
+            clearInterval(dashRefreshTimer);
+            dashRefreshTimer = null;
+        }
+    }
+});
+
+async function loadSummary() {
+    const r = await fetch('/api/summary');
+    const d = await r.json();
+    countUp(document.getElementById('s-total-assets'), d.total_assets);
+    document.getElementById('s-active-assets').textContent = `${d.active_assets} active`;
+    countUp(document.getElementById('s-critical'), d.critical_cves);
+    document.getElementById('s-high').textContent = `${d.high_cves} high severity`;
+    countUp(document.getElementById('s-total-cves'), d.total_cves);
+    const kevEl = document.getElementById('s-kev');
+    kevEl.textContent = d.kev_cves > 0
+        ? `${d.kev_cves} actively exploited (KEV)` : 'none in CISA KEV';
+    kevEl.style.color = d.kev_cves > 0 ? 'var(--accent-red)' : '';
+    kevEl.style.fontWeight = d.kev_cves > 0 ? '700' : '';
+
+    const kevListEl = document.getElementById('s-kev-list');
+    kevListEl.innerHTML = (d.kev_details || []).map(k => `
+        <div style="font-family:'Share Tech Mono',monospace;font-size:10px;margin-top:2px">
+            <a href="https://nvd.nist.gov/vuln/detail/${k.cve_id}" target="_blank"
+               style="color:var(--accent-red);text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${k.cve_id}</a>
+            <span style="color:var(--text-muted)"> — ${k.vendor} ${k.product} (${k.ip})</span>
+        </div>
+    `).join('');
+
+    countUp(document.getElementById('s-alerts'), d.total_alerts);
+    document.getElementById('s-attacks').textContent = `${d.active_attacks} active attacks`;
+    countUp(document.getElementById('s-anomalous'), d.anomalous_assets);
+}
+
+function destroyChart(canvasId) {
+    const existing = Chart.getChart(canvasId);
+    if (existing) existing.destroy();
+}
+
+// Speedometer-style reveal: bars snap straight to a peak past their real
+// value (like a needle sweeping to redline on startup), hold for a beat,
+// then ease smoothly back down to the true reading.
+function buildSweepingBarChart(canvasId, labels, realDatasets, chartOptions, peakScale = 1.4, holdMs = 180, settleMs = 1200) {
+    const peakDatasets = realDatasets.map(ds => ({
+        ...ds,
+        data: ds.data.map(v => typeof v === 'number' ? v * peakScale : v),
+    }));
+    const chart = new Chart(document.getElementById(canvasId), {
+        type: 'bar',
+        data: { labels, datasets: peakDatasets },
+        options: { ...chartOptions, animation: false }
+    });
+    setTimeout(() => {
+        chart.data.datasets = realDatasets;
+        chart.options.animation = { duration: settleMs, easing: 'easeOutCubic' };
+        chart.update();
+    }, holdMs);
+    return chart;
+}
+
+async function loadCharts() {
+    ['chart-cves-per-device', 'chart-risk-donut', 'chart-cvss', 'chart-zone'].forEach(destroyChart);
+
+    // CVEs per device
+    const r1 = await fetch('/api/charts/cves_per_device');
+    const devData = await r1.json();
+    const labels = devData.map(d => {
+        const parts = d.device.split(' ');
+        return parts.slice(-2).join(' ');
+    });
+    buildSweepingBarChart('chart-cves-per-device', labels, [
+        { label: 'Critical', data: devData.map(d => d.critical), backgroundColor: 'rgba(255,51,85,0.8)',   borderColor: '#ff3355', borderWidth: 1 },
+        { label: 'High',     data: devData.map(d => d.high),     backgroundColor: 'rgba(255,140,0,0.8)',   borderColor: '#ff8c00', borderWidth: 1 },
+        { label: 'Medium',   data: devData.map(d => d.medium),   backgroundColor: 'rgba(255,215,0,0.7)',   borderColor: '#ffd700', borderWidth: 1 },
+        { label: 'Low',      data: devData.map(d => d.low),      backgroundColor: 'rgba(0,255,136,0.6)',   borderColor: '#00ff88', borderWidth: 1 },
+    ], {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { boxWidth: 10, padding: 12 } } },
+        scales: {
+            x: { stacked: true, grid: { color: 'rgba(26,58,80,0.5)' }, ticks: { maxRotation: 30 } },
+            y: { stacked: true, grid: { color: 'rgba(26,58,80,0.5)' }, beginAtZero: true }
+        }
+    });
+
+    // Risk donut — a slow, deliberate sweep-in rather than the default snap
+    const r2 = await fetch('/api/charts/risk_distribution');
+    const riskData = await r2.json();
+    const tierColors = { CRITICAL: '#ff3355', HIGH: '#ff8c00', MEDIUM: '#ffd700', LOW: '#00ff88' };
+    new Chart(document.getElementById('chart-risk-donut'), {
+        type: 'doughnut',
+        data: {
+            labels: riskData.map(d => d.tier),
+            datasets: [{
+                data: riskData.map(d => d.count),
+                backgroundColor: riskData.map(d => tierColors[d.tier] + '99'),
+                borderColor: riskData.map(d => tierColors[d.tier]),
+                borderWidth: 2,
+                hoverOffset: 6
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '65%',
+            animation: { duration: 1300, easing: 'easeInOutCubic' },
+            plugins: {
+                legend: { position: 'right', labels: { boxWidth: 12, padding: 14 } }
+            }
+        }
+    });
+
+    // CVSS distribution
+    const r3 = await fetch('/api/charts/cvss_distribution');
+    const cvssData = await r3.json();
+    const cvssColors = ['rgba(255,51,85,0.8)', 'rgba(255,140,0,0.8)', 'rgba(255,215,0,0.7)', 'rgba(0,255,136,0.6)'];
+    buildSweepingBarChart('chart-cvss', cvssData.map(d => d.range), [{
+        label: 'CVEs',
+        data: cvssData.map(d => d.count),
+        backgroundColor: cvssColors,
+        borderColor: cvssColors.map(c => c.replace('0.8','1').replace('0.7','1').replace('0.6','1')),
+        borderWidth: 1
+    }], {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { color: 'rgba(26,58,80,0.5)' } },
+            y: { grid: { color: 'rgba(26,58,80,0.5)' }, beginAtZero: true }
+        }
+    });
+
+    // Zone risk
+    const r4 = await fetch('/api/charts/zone_risk');
+    const zoneData = await r4.json();
+    new Chart(document.getElementById('chart-zone'), {
+        type: 'radar',
+        data: {
+            labels: ['Total CVEs', 'Avg Risk', 'Critical CVEs'],
+            datasets: zoneData.map((z, i) => ({
+                label: z.zone,
+                data: [
+                    Math.min(z.total_cves / 2, 100),
+                    (z.avg_risk || 0) * 10,
+                    z.critical
+                ],
+                borderColor: i === 0 ? '#ff8c00' : '#00d4ff',
+                backgroundColor: i === 0 ? 'rgba(255,140,0,0.1)' : 'rgba(0,212,255,0.1)',
+                borderWidth: 2,
+                pointBackgroundColor: i === 0 ? '#ff8c00' : '#00d4ff',
+            }))
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+                r: {
+                    grid: { color: 'rgba(26,58,80,0.8)' },
+                    angleLines: { color: 'rgba(26,58,80,0.8)' },
+                    pointLabels: { color: '#5a8a9f', font: { size: 11 } },
+                    ticks: { display: false }
+                }
+            }
+        }
+    });
+}
+
+async function loadTopCVEs() {
+    const r = await fetch('/api/vulnerabilities?limit=10');
+    const data = await r.json();
+    document.getElementById('top-cves-loading').style.display = 'none';
+    document.getElementById('top-cves-wrap').style.display = 'block';
+    const tbody = document.getElementById('top-cves-body');
+    if (!data.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4" style="color:var(--text-muted);font-family:'Share Tech Mono',monospace;font-size:12px">NO DATA</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = data.map(v => `
+        <tr>
+            <td><span style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent-cyan)">${v.cve_id}</span></td>
+            <td>
+                <div style="font-weight:600">${v.vendor}</div>
+                <div style="font-size:11px;color:var(--text-muted)">${v.product} · ${v.ip}</div>
+            </td>
+            <td><span class="zone-${v.zone}">${v.zone}</span></td>
+            <td><span style="font-family:'Share Tech Mono',monospace;color:${riskColor(v.cvss)}">${v.cvss}</span></td>
+            <td><span style="font-family:'Share Tech Mono',monospace;font-size:12px">${(v.epss * 100).toFixed(2)}%</span></td>
+            <td>${riskBar(v.risk_score)}</td>
+            <td>${tierBadge(v.risk_tier)}</td>
+        </tr>
+    `).join('');
+}
+</script>
+{% endblock %}

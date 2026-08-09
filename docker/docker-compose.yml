@@ -1,0 +1,49 @@
+# CAVE-OT — Docker testbed (replaces the VMware VM)
+#
+# Architecture:
+#   engine    — Ubuntu container with Suricata + tcpdump + the actual pipeline
+#               scripts (cave_monitor.py, smart_discover.py, cve_discovery.py,
+#               attack_path.py — COPYed directly from the repo root, not a
+#               separate maintained copy; see engine/Dockerfile). Owns the
+#               network namespace.
+#   honeypot  — lightweight multi-port listener standing in for the Conpot
+#               containers. Joins the engine's network namespace
+#               (network_mode: service:engine) so every device port lives on
+#               the SAME localhost the engine sees — faithfully reproducing
+#               the VM, where every device was a 127.0.0.1:<port> service.
+#               This is what lets Suricata (watching lo) and smart_discover
+#               (pcap of lo) see all device traffic with no code changes.
+#
+# The engine syncs result JSON to ./shared (bind-mounted at the same
+# /mnt/hgfs/shared folder path the VM used), where the Windows-host
+# file_watcher.py + Database/sync_db.py pick it up into Postgres — the exact
+# same host-side ingestion path as the VM setup.
+#
+# See ../README.md (or the "Docker testbed" section of the main README) for
+# quickstart / architecture rationale / troubleshooting.
+
+services:
+  engine:
+    build:
+      context: ..              # repo root — Dockerfile COPYs real source files
+      dockerfile: docker/engine/Dockerfile
+    container_name: caveot-engine
+    cap_add:
+      - NET_ADMIN   # suricata/tcpdump loopback capture
+      - NET_RAW
+    volumes:
+      - type: bind
+        source: ./shared
+        target: /mnt/hgfs/shared folder
+    command: ["python3", "/home/caveot/cave_ot_test/cave_monitor.py"]
+    tty: true   # cave_monitor.py's TUI writes ANSI colour codes; keeps `docker logs` readable
+
+  honeypot:
+    build: ./honeypot
+    container_name: caveot-honeypot
+    network_mode: "service:engine"   # share the engine's localhost
+    depends_on:
+      - engine
+    environment:
+      TCP_PORTS: "502,10201,20000,5020,6230,80,5031,5032,20001,8080,443,2222,10203,10204"
+      UDP_PORTS: "47808"

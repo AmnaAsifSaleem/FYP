@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% block title %}Remediation Advisor{% endblock %}
+{% block page_heading %}Remediation Advisor{% endblock %}
+
+{% block content %}
+<div class="section-heading">LLM Remediation Advisor — RAG-grounded, gatekeeper-reviewed, human-approved. Nothing here is ever auto-applied.</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3">
+        <div class="stat-card cyan">
+            <div class="stat-label">Total Recommendations</div>
+            <div class="stat-value cyan" id="rm-total">—</div>
+            <div class="stat-sub" id="rm-blocked-sub">— blocked by gatekeeper</div>
+            <i class="bi bi-robot stat-icon" style="color:var(--accent-cyan)"></i>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card orange">
+            <div class="stat-label">Pending Review</div>
+            <div class="stat-value orange" id="rm-pending">—</div>
+            <div class="stat-sub">awaiting your decision</div>
+            <i class="bi bi-hourglass-split stat-icon" style="color:var(--accent-orange)"></i>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card green">
+            <div class="stat-label">Approved</div>
+            <div class="stat-value green" id="rm-approved">—</div>
+            <div class="stat-sub" id="rm-rejected-sub">— rejected</div>
+            <i class="bi bi-check-circle stat-icon" style="color:var(--accent-green)"></i>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card red">
+            <div class="stat-label">Blocked by Gatekeeper</div>
+            <div class="stat-value red" id="rm-blocked">—</div>
+            <div class="stat-sub">never reached you — see below</div>
+            <i class="bi bi-shield-x stat-icon" style="color:var(--accent-red)"></i>
+        </div>
+    </div>
+</div>
+
+<div class="panel mb-4">
+    <div class="panel-header">
+        <span class="panel-title">Actions</span>
+        <div class="d-flex gap-2 align-items-center">
+            <label style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);display:flex;align-items:center;gap:6px;margin:0">
+                <input type="checkbox" id="rm-show-blocked" onchange="loadRecommendations()"> SHOW BLOCKED
+            </label>
+            <button class="btn-ot" id="rm-generate-all-btn" onclick="generateAll()">
+                <i class="bi bi-magic"></i> GENERATE FOR ALL CRITICAL DEVICES
+            </button>
+            <button class="btn-ot" style="background:transparent;border-color:var(--border)" onclick="loadAll()">
+                <i class="bi bi-arrow-clockwise"></i> REFRESH
+            </button>
+        </div>
+    </div>
+    <div class="panel-body" id="rm-progress-wrap" style="display:none;padding:12px 20px">
+        <div style="background:var(--bg-dark);border-radius:4px;height:6px;overflow:hidden">
+            <div id="rm-progress-bar" style="height:100%;width:0%;background:var(--accent-cyan);transition:width 0.4s"></div>
+        </div>
+        <div id="rm-progress-status" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-muted);margin-top:8px">Running...</div>
+    </div>
+</div>
+
+<div class="panel mb-4">
+    <div class="panel-header">
+        <span class="panel-title">Candidates — CRITICAL/HIGH Devices Without a Current Recommendation</span>
+        <span id="rm-candidates-count" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-muted)"></span>
+    </div>
+    <div id="rm-candidates-loading" class="text-center py-4"><div class="ot-spinner"></div></div>
+    <div id="rm-candidates-wrap" style="display:none;overflow-x:auto">
+        <table class="ot-table">
+            <thead><tr><th>Device</th><th>Zone</th><th>CVE</th><th>CVSS</th><th>Risk</th><th>Tier</th><th>Action</th></tr></thead>
+            <tbody id="rm-candidates-tbody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-header">
+        <span class="panel-title">Recommendations</span>
+        <span id="rm-rec-count" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-muted)"></span>
+    </div>
+    <div id="rm-rec-loading" class="text-center py-4"><div class="ot-spinner"></div></div>
+    <div id="rm-rec-wrap" style="display:none;overflow-x:auto">
+        <table class="ot-table">
+            <thead><tr>
+                <th>Device</th><th>CVE / Risk</th><th>Recommendation</th><th>Maint. Window</th>
+                <th>Gatekeeper</th><th>Status</th><th>Decision</th>
+            </tr></thead>
+            <tbody id="rm-rec-tbody"></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let rmRecs = [];
+let rmPollTimer = null;
+
+document.addEventListener('DOMContentLoaded', loadAll);
+function loadAll() { loadRecommendations(); loadCandidates(); }
+
+function verdictBadge(v) {
+    const map = { ALLOW: ['#00ff88', 'rgba(0,255,136,0.1)'], NEEDS_REVIEW: ['var(--accent-orange)', 'rgba(255,140,0,0.1)'],
+                  BLOCK: ['var(--accent-red)', 'rgba(255,51,85,0.12)'] };
+    const [c, bg] = map[v] || ['var(--text-muted)', 'transparent'];
+    return `<span style="font-family:'Share Tech Mono',monospace;font-size:9px;font-weight:700;color:${c};background:${bg};border:1px solid ${c};border-radius:2px;padding:2px 6px">${v}</span>`;
+}
+
+function statusBadge(s) {
+    const map = { PENDING: 'var(--text-muted)', APPROVED: 'var(--accent-green)', REJECTED: 'var(--accent-red)', DEFERRED: 'var(--accent-orange)' };
+    return `<span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:${map[s]||'var(--text-muted)'}">${s}</span>`;
+}
+
+// Flask's jsonify already deserializes JSONB columns (psycopg2 hands them
+// back as native Python lists/dicts) — so rec.gatekeeper_reasons etc. arrive
+// as real JS arrays/objects already, not JSON strings. JSON.parse() on an
+// already-parsed array throws (silently swallowed by try/catch), which is
+// why reasons/context/matched-rules were rendering as empty. This helper
+// handles both shapes defensively either way.
+function parseMaybeJSON(v, fallback) {
+    if (v == null) return fallback;
+    if (typeof v === 'string') {
+        try { return JSON.parse(v); } catch (e) { return fallback; }
+    }
+    return v;
+}
+
+function gatekeeperReasonShort(rec) {
+    if (rec.gatekeeper_verdict === 'ALLOW') return 'no issues flagged';
+    const reasons = parseMaybeJSON(rec.gatekeeper_reasons, []);
+    if (!reasons.length) return '';
+    const first = reasons[0];
+    return first.length > 90 ? first.slice(0, 90) + '…' : first;
+}
+
+async function loadRecommendations() {
+    document.getElementById('rm-rec-loading').style.display = 'block';
+    document.getElementById('rm-rec-wrap').style.display = 'none';
+    const showBlocked = document.getElementById('rm-show-blocked').checked;
+    try {
+        const r = await fetch('/api/remediation' + (showBlocked ? '?show_blocked=1' : ''));
+        rmRecs = await r.json();
+        document.getElementById('rm-rec-loading').style.display = 'none';
+        document.getElementById('rm-rec-wrap').style.display = 'block';
+        document.getElementById('rm-rec-count').textContent = rmRecs.length + ' recommendations';
+
+        const total = rmRecs.length;
+        const pending = rmRecs.filter(r => r.status === 'PENDING').length;
+        const approved = rmRecs.filter(r => r.status === 'APPROVED').length;
+        const rejected = rmRecs.filter(r => r.status === 'REJECTED').length;
+        const blocked = rmRecs.filter(r => r.gatekeeper_verdict === 'BLOCK').length;
+        document.getElementById('rm-total').textContent = total;
+        document.getElementById('rm-blocked-sub').textContent = blocked + ' blocked by gatekeeper';
+        document.getElementById('rm-pending').textContent = pending;
+        document.getElementById('rm-approved').textContent = approved;
+        document.getElementById('rm-rejected-sub').textContent = rejected + ' rejected';
+        document.getElementById('rm-blocked').textContent = blocked;
+
+        const tbody = document.getElementById('rm-rec-tbody');
+        if (!rmRecs.length) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4" style="color:var(--text-muted);font-family:'Share Tech Mono',monospace;font-size:12px">NO RECOMMENDATIONS YET — generate one from the candidates below</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = rmRecs.map(rec => renderRow(rec)).join('');
+    } catch (e) {
+        console.error('Recommendations error:', e);
+    }
+}
+
+function renderRow(rec) {
+    const short = (rec.recommendation || '').length > 110 ? rec.recommendation.slice(0, 110) + '…' : rec.recommendation;
+    const decided = rec.status !== 'PENDING';
+    const decisionCell = decided
+        ? `<span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)">${rec.decided_at ? rec.decided_at.substring(0,16) : ''}</span>`
+        : `<div class="d-flex gap-1">
+             <button class="btn-ot-green" style="padding:4px 8px;font-size:10px" onclick="decide(${rec.id},'approve',this)">APPROVE</button>
+             <button class="btn-ot-danger" style="padding:4px 8px;font-size:10px" onclick="decide(${rec.id},'reject',this)">REJECT</button>
+             <button class="btn-ot" style="padding:4px 8px;font-size:10px;background:transparent;border-color:var(--border)" onclick="decide(${rec.id},'defer',this)">DEFER</button>
+           </div>`;
+    return `
+        <tr>
+            <td onclick="toggleDetail(${rec.id})" style="cursor:pointer">
+                <div style="font-weight:600">${rec.vendor} ${rec.product}</div>
+                <div style="font-size:11px;color:var(--text-muted)">${rec.ip}:${rec.port} · <span class="zone-${rec.zone}">${rec.zone}</span></div>
+            </td>
+            <td onclick="toggleDetail(${rec.id})" style="cursor:pointer">
+                <a href="https://nvd.nist.gov/vuln/detail/${rec.cve_id}" target="_blank" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-cyan);text-decoration:none">${rec.cve_id}</a>
+                <div style="font-size:10px;color:var(--text-muted)">${rec.risk_tier_at_generation} · risk ${Number(rec.risk_score_at_generation).toFixed(1)}</div>
+            </td>
+            <td onclick="toggleDetail(${rec.id})" style="cursor:pointer;font-size:12px;max-width:320px;white-space:normal">${short}</td>
+            <td>${rec.requires_maintenance_window
+                ? '<span style="color:var(--accent-orange);font-size:11px"><i class="bi bi-exclamation-triangle"></i> required</span>'
+                : '<span style="color:var(--text-muted);font-size:11px">not required</span>'}</td>
+            <td onclick="toggleDetail(${rec.id})" style="cursor:pointer;max-width:220px">
+                ${verdictBadge(rec.gatekeeper_verdict)}
+                <div style="font-size:10px;color:var(--text-muted);white-space:normal;margin-top:4px">${gatekeeperReasonShort(rec)}</div>
+            </td>
+            <td>${statusBadge(rec.status)}</td>
+            <td>${decisionCell}</td>
+        </tr>
+        <tr id="detail-${rec.id}" style="display:none">
+            <td colspan="7" style="background:var(--bg-dark);padding:16px">
+                ${renderDetail(rec)}
+            </td>
+        </tr>`;
+}
+
+function renderDetail(rec) {
+    const ctx = parseMaybeJSON(rec.retrieved_context, []);
+    const reasons = parseMaybeJSON(rec.gatekeeper_reasons, []);
+    const matched = parseMaybeJSON(rec.gatekeeper_matched_rules, []);
+    const mlSignal = parseMaybeJSON(rec.ml_confidence_signal, null);
+
+    return `
+    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-green);letter-spacing:1px;margin-bottom:4px">FULL RECOMMENDATION</div>
+    <div style="font-size:13px;color:var(--text-primary);margin-bottom:16px;padding:10px;background:rgba(0,255,136,0.04);border-left:3px solid var(--accent-green)">${rec.recommendation || '—'}</div>
+    <div class="row g-3">
+        <div class="col-12 col-lg-6">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-cyan);letter-spacing:1px;margin-bottom:4px">RATIONALE</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">${rec.rationale || '—'}</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-orange);letter-spacing:1px;margin-bottom:4px">OT SAFETY NOTE</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">${rec.ot_safety_note || '—'}</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:1px;margin-bottom:4px">RETRIEVED GUIDANCE (RAG CONTEXT)</div>
+            ${ctx.map(c => `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">[${(c.similarity*100).toFixed(0)}%] <b>${c.topic}</b> — ${c.text}</div>`).join('') || '<div style="font-size:11px;color:var(--text-muted)">none</div>'}
+        </div>
+        <div class="col-12 col-lg-6">
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-red);letter-spacing:1px;margin-bottom:4px">GATEKEEPER VERDICT: ${rec.gatekeeper_verdict}</div>
+            ${reasons.map(r => `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">• ${r}</div>`).join('') || '<div style="font-size:12px;color:var(--text-muted)">no flags raised</div>'}
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:1px;margin:10px 0 4px">MATCHED POLICY RULES</div>
+            <div style="font-size:12px;color:var(--text-secondary)">${matched.join(', ') || 'none'}</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:1px;margin:10px 0 4px">ML COMPLIANCE SIGNAL (informational only)</div>
+            <div style="font-size:12px;color:var(--text-secondary)">${mlSignal ? mlSignal.compliance_status + ' (score ' + Number(mlSignal.compliance_score).toFixed(2) + ')' : 'no policy_compliance record for this asset'}</div>
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:1px;margin:10px 0 4px">MODEL</div>
+            <div style="font-size:11px;color:var(--text-muted)">${rec.llm_model || '—'} · confidence ${rec.llm_confidence != null ? (rec.llm_confidence*100).toFixed(0)+'%' : '—'}</div>
+        </div>
+    </div>`;
+}
+
+function toggleDetail(id) {
+    const row = document.getElementById('detail-' + id);
+    if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+
+async function decide(id, action, btn) {
+    btn.disabled = true;
+    try {
+        const r = await fetch(`/api/remediation/${id}/${action}`, { method: 'POST' });
+        const d = await r.json();
+        if (!d.success) { alert('Error: ' + d.message); btn.disabled = false; return; }
+        loadRecommendations();
+    } catch (e) {
+        alert('Error: ' + e);
+        btn.disabled = false;
+    }
+}
+
+async function loadCandidates() {
+    document.getElementById('rm-candidates-loading').style.display = 'block';
+    document.getElementById('rm-candidates-wrap').style.display = 'none';
+    try {
+        const r = await fetch('/api/remediation/candidates');
+        const candidates = await r.json();
+        document.getElementById('rm-candidates-loading').style.display = 'none';
+        document.getElementById('rm-candidates-wrap').style.display = 'block';
+        document.getElementById('rm-candidates-count').textContent = candidates.length + ' candidates';
+        const tbody = document.getElementById('rm-candidates-tbody');
+        if (!candidates.length) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4" style="color:var(--accent-green);font-family:'Share Tech Mono',monospace;font-size:12px">ALL CRITICAL/HIGH DEVICES HAVE A CURRENT RECOMMENDATION</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = candidates.map(c => `
+            <tr>
+                <td><div style="font-weight:600">${c.vendor} ${c.product}</div><div style="font-size:11px;color:var(--text-muted)">${c.ip}:${c.port}</div></td>
+                <td><span class="zone-${c.zone}">${c.zone}</span></td>
+                <td><span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-cyan)">${c.cve_id}</span></td>
+                <td>${c.cvss}</td>
+                <td>${Number(c.risk_score).toFixed(1)}</td>
+                <td>${tierBadge(c.risk_tier)}</td>
+                <td><button class="btn-ot" style="padding:4px 10px;font-size:10px" onclick="generateOne(${c.asset_id}, '${c.cve_id}', this)">GENERATE</button></td>
+            </tr>`).join('');
+    } catch (e) {
+        console.error('Candidates error:', e);
+    }
+}
+
+async function generateOne(assetId, cveId, btn) {
+    const orig = btn.textContent; btn.textContent = 'GENERATING...'; btn.disabled = true;
+    try {
+        const r = await fetch('/api/remediation/generate', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ asset_id: assetId, cve_id: cveId })
+        });
+        const d = await r.json();
+        if (!d.success) { alert('Error: ' + d.message); btn.textContent = orig; btn.disabled = false; return; }
+        loadAll();
+    } catch (e) {
+        alert('Error: ' + e); btn.textContent = orig; btn.disabled = false;
+    }
+}
+
+async function generateAll() {
+    const btn = document.getElementById('rm-generate-all-btn');
+    const wrap = document.getElementById('rm-progress-wrap');
+    const bar = document.getElementById('rm-progress-bar');
+    const status = document.getElementById('rm-progress-status');
+    btn.disabled = true; wrap.style.display = 'block'; bar.style.width = '0%'; status.textContent = 'Starting...';
+
+    await fetch('/api/remediation/generate/all', { method: 'POST' });
+
+    rmPollTimer = setInterval(async () => {
+        const r = await fetch('/api/remediation/generate/status');
+        const d = await r.json();
+        const pct = d.total > 0 ? Math.round((d.completed / d.total) * 100) : 0;
+        bar.style.width = pct + '%';
+        status.textContent = d.running
+            ? `Generating ${d.completed}/${d.total}${d.current_asset ? ' — ' + d.current_asset : ''}...`
+            : `Complete — ${d.completed}/${d.total} generated` + (d.errors.length ? `, ${d.errors.length} errors` : '');
+        if (!d.running) {
+            clearInterval(rmPollTimer);
+            btn.disabled = false;
+            setTimeout(() => { wrap.style.display = 'none'; bar.style.width = '0%'; }, 1500);
+            loadAll();
+        }
+    }, 2000);
+}
+</script>
+{% endblock %}

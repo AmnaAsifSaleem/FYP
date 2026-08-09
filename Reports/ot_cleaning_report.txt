@@ -1,0 +1,4 @@
+Before: 13715
+After: 6666
+Removed: 7049
+KEV in clean OT: 18

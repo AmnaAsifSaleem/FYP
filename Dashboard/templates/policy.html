@@ -1,0 +1,176 @@
+﻿{% extends "base.html" %}
+{% block title %}Policy Compliance{% endblock %}
+{% block page_heading %}Policy Compliance{% endblock %}
+
+{% block content %}
+<div class="section-heading">Security Policy Compliance — NIST SP 800-82r3 · CISA DiD · NERC CIP</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3">
+        <div class="stat-card cyan">
+            <div class="stat-label">Total Assets</div>
+            <div class="stat-value cyan" id="pc-total">—</div>
+            <div class="stat-sub" id="pc-checked">— checked</div>
+            <i class="bi bi-hdd-network stat-icon" style="color:var(--accent-cyan)"></i>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card green">
+            <div class="stat-label">Compliant</div>
+            <div class="stat-value green" id="pc-compliant">—</div>
+            <div class="stat-sub" id="pc-compliant-pct">—%</div>
+            <i class="bi bi-shield-check stat-icon" style="color:var(--accent-green)"></i>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card red">
+            <div class="stat-label">Non-Compliant</div>
+            <div class="stat-value red" id="pc-noncompliant">—</div>
+            <div class="stat-sub" id="pc-noncompliant-pct">—%</div>
+            <i class="bi bi-shield-x stat-icon" style="color:var(--accent-red)"></i>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card orange">
+            <div class="stat-label">Avg Score</div>
+            <div class="stat-value orange" id="pc-avg">—</div>
+            <div class="stat-sub" id="pc-lastcheck">Never checked</div>
+            <i class="bi bi-graph-up stat-icon" style="color:var(--accent-orange)"></i>
+        </div>
+    </div>
+</div>
+
+<div class="panel mb-4">
+    <div class="panel-header">
+        <span class="panel-title">Compliance Actions</span>
+        <div class="d-flex gap-2">
+            <button class="btn-ot" id="check-all-btn" onclick="checkAll()">
+                <i class="bi bi-shield-check"></i> CHECK ALL ASSETS
+            </button>
+            <button class="btn-ot" style="background:transparent;border-color:var(--border)" onclick="loadAll()">
+                <i class="bi bi-arrow-clockwise"></i> REFRESH
+            </button>
+        </div>
+    </div>
+    <div class="panel-body" id="check-progress-wrap" style="display:none;padding:12px 20px">
+        <div style="background:var(--bg-dark);border-radius:4px;height:6px;overflow:hidden">
+            <div id="check-progress-bar" style="height:100%;width:0%;background:var(--accent-cyan);transition:width 0.4s"></div>
+        </div>
+        <div id="check-status" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-muted);margin-top:8px">Running...</div>
+    </div>
+</div>
+
+<div class="panel mb-4">
+    <div class="panel-header"><span class="panel-title">Compliance by Zone</span></div>
+    <div class="panel-body"><div class="row g-3" id="zone-cards">
+        <div class="col-12 text-center py-3" style="color:var(--text-muted);font-family:'Share Tech Mono',monospace;font-size:12px">LOADING...</div>
+    </div></div>
+</div>
+
+<div class="panel mb-4">
+    <div class="panel-header">
+        <span class="panel-title">Asset Compliance Details</span>
+        <span id="asset-count" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-muted)"></span>
+    </div>
+    <div id="assets-loading" class="text-center py-4"><div class="ot-spinner"></div></div>
+    <div id="assets-table-wrap" style="display:none;overflow-x:auto">
+        <table class="ot-table">
+            <thead><tr>
+                <th>Asset</th><th>Zone</th><th>Service</th><th>Status</th>
+                <th>Score</th><th>Confidence</th><th>Issues</th><th>Last Check</th><th>Action</th>
+            </tr></thead>
+            <tbody id="assets-tbody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-header">
+        <span class="panel-title" style="color:var(--accent-red)"><i class="bi bi-exclamation-triangle"></i> Top Policy Violations</span>
+    </div>
+    <div class="panel-body" id="violations-body">
+        <div style="color:var(--text-muted);font-family:'Share Tech Mono',monospace;font-size:12px;text-align:center;padding:20px">LOADING...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', loadAll);
+function loadAll() { loadSummary(); loadAssets(); }
+
+async function loadSummary() {
+    try {
+        const r = await fetch('/api/policy/summary');
+        const d = await r.json();
+        if (d.error) { console.error(d.error); return; }
+        const s = d.statistics, checked = s.checked_assets || 1;
+        document.getElementById('pc-total').textContent = s.total_assets;
+        document.getElementById('pc-checked').textContent = s.checked_assets + ' checked';
+        document.getElementById('pc-compliant').textContent = s.compliant_count;
+        document.getElementById('pc-noncompliant').textContent = s.non_compliant_count;
+        document.getElementById('pc-compliant-pct').textContent = Math.round((s.compliant_count/checked)*100)+'%';
+        document.getElementById('pc-noncompliant-pct').textContent = Math.round((s.non_compliant_count/checked)*100)+'%';
+        document.getElementById('pc-avg').textContent = s.avg_compliance_score.toFixed(2);
+        if (s.last_check) document.getElementById('pc-lastcheck').textContent = 'Last: '+new Date(s.last_check).toLocaleString();
+
+        const zc = document.getElementById('zone-cards');
+        if (!d.zones||!d.zones.length) { zc.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:12px;font-family:Share Tech Mono,monospace;font-size:12px">NO ZONE DATA</div>'; }
+        else { zc.innerHTML = d.zones.map(z => {
+            const pct=z.total>0?Math.round((z.compliant/z.total)*100):0;
+            const col=pct>=70?'var(--accent-green)':pct>=40?'var(--accent-orange)':'var(--accent-red)';
+            return '<div class="col-12 col-md-6 col-xl-3"><div style="background:var(--bg-dark);border:1px solid var(--border);border-radius:4px;padding:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span class="zone-'+z.zone+'" style="font-size:13px">'+z.zone+'</span><span style="font-family:Orbitron,monospace;font-size:18px;color:'+col+'">'+pct+'%</span></div><div style="background:rgba(255,255,255,0.05);border-radius:2px;height:4px;margin-bottom:8px"><div style="width:'+pct+'%;height:100%;background:'+col+';border-radius:2px"></div></div><div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--text-muted)">'+z.compliant+'/'+z.total+' compliant &middot; avg '+z.avg_score.toFixed(2)+'</div></div></div>';
+        }).join(''); }
+
+        const vb = document.getElementById('violations-body');
+        if (!d.top_non_compliant||!d.top_non_compliant.length) {
+            vb.innerHTML='<div style="color:var(--accent-green);font-family:Share Tech Mono,monospace;font-size:12px;text-align:center;padding:20px">NO VIOLATIONS FOUND</div>';
+        } else {
+            vb.innerHTML = d.top_non_compliant.map(a =>
+                '<div style="border-left:3px solid var(--accent-red);padding:12px 16px;margin-bottom:12px;background:rgba(255,51,85,0.04)"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><div><span style="font-weight:600;font-size:14px">'+a.vendor+' '+a.product+'</span><span class="zone-'+a.zone+'" style="margin-left:8px">'+a.zone+'</span><span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--accent-orange);margin-left:6px">'+a.service+':'+a.port+'</span></div><span style="font-family:Orbitron,monospace;font-size:16px;color:var(--accent-red)">'+a.compliance_score.toFixed(2)+'</span></div><div style="font-size:12px;color:var(--text-muted);margin-top:6px">'+(a.explanation||'')+'</div></div>'
+            ).join('');
+        }
+    } catch(e) { console.error('Summary error:',e); }
+}
+
+async function loadAssets() {
+    document.getElementById('assets-loading').style.display='block';
+    document.getElementById('assets-table-wrap').style.display='none';
+    try {
+        const r = await fetch('/api/policy/assets');
+        const assets = await r.json();
+        document.getElementById('assets-loading').style.display='none';
+        document.getElementById('assets-table-wrap').style.display='block';
+        document.getElementById('asset-count').textContent = assets.length+' assets';
+        const tbody = document.getElementById('assets-tbody');
+        if (!assets.length) { tbody.innerHTML='<tr><td colspan="9" class="text-center py-4" style="color:var(--text-muted);font-family:Share Tech Mono,monospace;font-size:12px">NO DATA</td></tr>'; return; }
+        tbody.innerHTML = assets.map(a => {
+            const status=a.compliance_status||'NOT CHECKED', score=a.compliance_score, conf=a.confidence;
+            const isComp=status==='COMPLIANT', notChecked=status==='NOT CHECKED';
+            const sc=isComp?'var(--accent-green)':notChecked?'var(--text-muted)':'var(--accent-red)';
+            const rc=score==null?'var(--text-muted)':score>=0.6?'var(--accent-green)':score>=0.3?'var(--accent-orange)':'var(--accent-red)';
+            const fi=(a.explanation||'').split('|')[0].trim();
+            return '<tr><td><div style="font-weight:600">'+a.vendor+' '+a.product+'</div><div style="font-size:11px;color:var(--text-muted)">'+a.ip+':'+a.port+'</div></td><td><span class="zone-'+a.zone+'">'+a.zone+'</span></td><td><span style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--accent-orange)">'+(a.service||'—')+'</span></td><td><span style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+sc+'">'+(isComp?'✓':notChecked?'○':'✗')+' '+status+'</span></td><td><span style="font-family:Orbitron,monospace;font-size:15px;color:'+rc+'">'+(score!=null?score.toFixed(2):'—')+'</span></td><td style="font-family:Share Tech Mono,monospace;font-size:12px">'+(conf!=null?(conf*100).toFixed(0)+'%':'—')+'</td><td style="font-size:11px;color:var(--text-muted);max-width:220px;white-space:normal">'+(fi||'—')+'</td><td style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--text-muted)">'+(a.checked_at?a.checked_at.substring(0,16):'—')+'</td><td><button onclick="checkOne('+a.id+',this)" style="font-family:Share Tech Mono,monospace;font-size:10px;padding:4px 10px;background:transparent;border:1px solid var(--border);color:var(--accent-cyan);border-radius:2px;cursor:pointer">CHECK</button></td></tr>';
+        }).join('');
+    } catch(e) { console.error('Assets error:',e); }
+}
+
+async function checkOne(id,btn) {
+    const o=btn.textContent; btn.textContent='...'; btn.disabled=true;
+    try { const r=await fetch('/api/policy/check/'+id,{method:'POST'}); const d=await r.json(); if(d.error){alert('Error: '+d.error);}else{loadAll();} }
+    catch(e){alert('Error: '+e);} finally{btn.textContent=o;btn.disabled=false;}
+}
+
+async function checkAll() {
+    const btn=document.getElementById('check-all-btn'),wrap=document.getElementById('check-progress-wrap'),bar=document.getElementById('check-progress-bar'),txt=document.getElementById('check-status');
+    btn.disabled=true; wrap.style.display='block'; bar.style.width='0%'; txt.textContent='Running...';
+    let pct=0; const t=setInterval(()=>{pct=Math.min(pct+4,88);bar.style.width=pct+'%';},400);
+    try {
+        const r=await fetch('/api/policy/check/all',{method:'POST'}); const d=await r.json();
+        clearInterval(t); bar.style.width='100%';
+        if(d.success){txt.textContent='Complete';setTimeout(()=>{loadAll();wrap.style.display='none';bar.style.width='0%';},800);}
+        else{txt.textContent='Error: '+(d.message||'unknown');}
+    } catch(e){clearInterval(t);txt.textContent='Error: '+e;} finally{btn.disabled=false;}
+}
+</script>
+{% endblock %}

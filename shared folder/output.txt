@@ -1,0 +1,248 @@
+
+================================================
+   CAVE-OT Pipeline Starting...
+================================================
+
+[1;33m[Step 1] Cleaning up old Docker containers...[0m
+conpot
+conpot
+[0;32m[✓] Done[0m
+
+[1;33m[Step 2] Starting Conpot...[0m
+2e7bdc1be1d8b4f610b0c6f0eb01b6678cb93aa95e01c65d92190015a54b73d7
+[0;32m[✓] Conpot running[0m
+    → Modbus PLC  : port 502
+    → Siemens S7  : port 10201
+    → BACnet      : port 47808
+    → IPMI Server : port 6230
+
+[1;33m[Step 3] Cleaning old files...[0m
+[0;32m[✓] Done[0m
+
+[1;33m[Step 4] Starting packet capture...[0m
+[0;32m[✓] tcpdump running (PID: 2313)[0m
+
+[1;33m[Step 5] Generating OT traffic...[0m
+    → Modbus traffic...
+    → S7 traffic...
+    → BACnet traffic...
+    → Waiting for traffic to complete...
+[*] Connecting to Conpot PLC...
+Read 1: Error - [Errno 104] Connection reset by peer
+Read 2: Error - [Errno 104] Connection reset by peer
+Read 3: Error - [Errno 104] Connection reset by peer
+Read 4: Error - [Errno 104] Connection reset by peer
+Read 5: Error - [Errno 104] Connection reset by peer
+Read 6: Error - [Errno 104] Connection reset by peer
+Read 7: Error - [Errno 104] Connection reset by peer
+Read 8: Error - [Errno 104] Connection reset by peer
+Read 9: Error - [Errno 104] Connection reset by peer
+Read 10: Error - [Errno 104] Connection reset by peer
+Read 11: Error - [Errno 104] Connection reset by peer
+Read 12: Error - [Errno 104] Connection reset by peer
+Read 13: Error - [Errno 104] Connection reset by peer
+Read 14: Error - [Errno 104] Connection reset by peer
+Read 15: Error - [Errno 104] Connection reset by peer
+Read 16: Error - [Errno 104] Connection reset by peer
+Read 17: Error - [Errno 104] Connection reset by peer
+Read 18: Error - [Errno 104] Connection reset by peer
+Read 19: Error - [Errno 104] Connection reset by peer
+Read 20: Error - [Errno 104] Connection reset by peer
+[*] Done.
+[*] Sending S7 traffic to Conpot...
+S7 Read 1: OK - 19 bytes
+S7 Read 2: OK - 19 bytes
+S7 Read 3: OK - 19 bytes
+S7 Read 4: OK - 19 bytes
+S7 Read 5: OK - 19 bytes
+S7 Read 6: OK - 19 bytes
+S7 Read 7: OK - 19 bytes
+S7 Read 8: OK - 19 bytes
+S7 Read 9: OK - 19 bytes
+S7 Read 10: OK - 19 bytes
+S7 Read 11: OK - 19 bytes
+S7 Read 12: OK - 19 bytes
+S7 Read 13: OK - 19 bytes
+S7 Read 14: OK - 19 bytes
+S7 Read 15: OK - 19 bytes
+S7 Read 16: OK - 19 bytes
+S7 Read 17: OK - 19 bytes
+S7 Read 18: OK - 19 bytes
+S7 Read 19: OK - 19 bytes
+S7 Read 20: OK - 19 bytes
+[*] S7 Done.
+[*] Sending BACnet traffic to Conpot...
+BACnet Read 1: Sent OK - no response
+BACnet Read 2: Sent OK - no response
+BACnet Read 3: Sent OK - no response
+BACnet Read 4: Sent OK - no response
+BACnet Read 5: Sent OK - no response
+BACnet Read 6: Sent OK - no response
+BACnet Read 7: Sent OK - no response
+BACnet Read 8: Sent OK - no response
+BACnet Read 9: Sent OK - no response
+BACnet Read 10: Sent OK - no response
+BACnet Read 11: Sent OK - no response
+BACnet Read 12: Sent OK - no response
+BACnet Read 13: Sent OK - no response
+BACnet Read 14: Sent OK - no response
+BACnet Read 15: Sent OK - no response
+BACnet Read 16: Sent OK - no response
+BACnet Read 17: Sent OK - no response
+BACnet Read 18: Sent OK - no response
+BACnet Read 19: Sent OK - no response
+BACnet Read 20: Sent OK - no response
+[*] BACnet Done.
+[0;32m[✓] Traffic generation complete[0m
+    → Waiting for capture to complete...
+[0;32m[✓] Capture complete[0m
+
+[1;33m[Step 6] Running asset discovery...[0m
+
+[*] Reading: test_all.pcap
+[*] Packets loaded: 150
+
+============================================================
+     PORT → SERVICE → VERSION → CVE OUTPUT
+============================================================
+
+  IP           : 127.0.0.1
+  Port         : 502
+  Service      : Modbus
+  Device Type  : PLC
+  Zone         : OT
+  Vendor       : Schneider Electric
+  Product      : Modicon M340
+  Firmware     : 2.39
+  Criticality  : 0.9
+  Packet Count : 60
+  Talkers      : 127.0.0.1
+
+  CVEs Found   : 3
+    ✓ CVE-2019-10915 | CVSS 8.8 | firmware 2.39 < 2.40
+    ✓ CVE-2020-7537 | CVSS 7.5 | firmware 2.39 < 4.00
+    ✓ CVE-2018-10952 | CVSS 6.5 | firmware 2.39 < 3.00
+------------------------------------------------------------
+
+  IP           : 127.0.0.1
+  Port         : 10201
+  Service      : S7comm
+  Device Type  : Siemens_PLC
+  Zone         : OT
+  Vendor       : Siemens
+  Product      : S7-300
+  Firmware     : V3.2.5
+  Criticality  : 0.95
+  Packet Count : 86
+  Talkers      : 127.0.0.1
+
+  CVEs Found   : 2
+    ✓ CVE-2019-13945 | CVSS 9.8 | firmware V3.2.5 < 4.0
+    ✓ CVE-2016-9158 | CVSS 7.5 | firmware V3.2.5 < 5.0
+------------------------------------------------------------
+
+  IP           : 127.0.0.1
+  Port         : 47808
+  Service      : BACnet
+  Device Type  : BACnet_Controller
+  Zone         : OT
+  Vendor       : Siemens
+  Product      : APOGEE PXC
+  Firmware     : 1.2
+  Criticality  : 0.5
+  Packet Count : 2
+  Talkers      : 127.0.0.1
+
+  CVEs Found   : 2
+    ✓ CVE-2019-13945 | CVSS 9.8 | firmware 1.2 < 4.0
+    ✓ CVE-2016-9158 | CVSS 7.5 | firmware 1.2 < 5.0
+------------------------------------------------------------
+
+[+] Total assets discovered : 3
+[+] Total CVE records       : 7
+[+] Saved to model_input.json
+[+] Ready for next step: EPSS + NVD API
+[0;32m[✓] Discovery complete[0m
+
+[1;33m[Step 7] Running Suricata analysis...[0m
+i: suricata: This is Suricata version 7.0.3 RELEASE running in USER mode
+i: threads: Threads created -> RX: 1 W: 2 FM: 1 FR: 1   Engine started.
+i: suricata: Signal Received.  Stopping engine.
+W: pcap: 1/1th of packets have an invalid checksum, consider setting pcap-file.checksum-checks variable to no or use '-k none' option on command line.
+i: pcap: read 1 file, 150 packets, 10701 bytes
+[0;32m[✓] Suricata complete — 4 alerts fired[0m
+
+[1;33m[Step 8] Ingesting Suricata alerts...[0m
+[*] Reading Suricata alerts...
+[+] Found 4 alerts
+[*] Updating model_input.json...
+[+] Updated 7 records with Suricata alerts
+
+============================================================
+   SURICATA ALERT SUMMARY
+============================================================
+
+  Modbus | PLC | Port 502
+  CVE: CVE-2019-10915 | CVSS: 8.8
+  Alerts: 1 | Severity: 1 | 🔴 UNDER ATTACK
+------------------------------------------------------------
+
+  Modbus | PLC | Port 502
+  CVE: CVE-2020-7537 | CVSS: 7.5
+  Alerts: 1 | Severity: 1 | 🔴 UNDER ATTACK
+------------------------------------------------------------
+
+  Modbus | PLC | Port 502
+  CVE: CVE-2018-10952 | CVSS: 6.5
+  Alerts: 1 | Severity: 1 | 🔴 UNDER ATTACK
+------------------------------------------------------------
+
+  S7comm | Siemens_PLC | Port 10201
+  CVE: CVE-2019-13945 | CVSS: 9.8
+  Alerts: 1 | Severity: 1 | 🔴 UNDER ATTACK
+------------------------------------------------------------
+
+  S7comm | Siemens_PLC | Port 10201
+  CVE: CVE-2016-9158 | CVSS: 7.5
+  Alerts: 1 | Severity: 1 | 🔴 UNDER ATTACK
+------------------------------------------------------------
+
+  BACnet | BACnet_Controller | Port 47808
+  CVE: CVE-2019-13945 | CVSS: 9.8
+  Alerts: 2 | Severity: 3 | 🟢 Normal
+------------------------------------------------------------
+
+  BACnet | BACnet_Controller | Port 47808
+  CVE: CVE-2016-9158 | CVSS: 7.5
+  Alerts: 2 | Severity: 3 | 🟢 Normal
+------------------------------------------------------------
+
+[+] model_input.json updated with Suricata context
+[+] alert_count, alert_severity, is_attacked filled
+[+] Ready for ML risk scoring
+[0;32m[✓] Alert ingestion complete[0m
+
+[1;33m[Step 9] Final Summary...[0m
+
+  Service      Port     CVE                  CVSS     Alerts   Attack     Criticality 
+  ------------------------------------------------------------------------------
+  Modbus       502      CVE-2019-10915       8.8      1        YES        0.9         
+  Modbus       502      CVE-2020-7537        7.5      1        YES        0.9         
+  Modbus       502      CVE-2018-10952       6.5      1        YES        0.9         
+  S7comm       10201    CVE-2019-13945       9.8      1        YES        0.95        
+  S7comm       10201    CVE-2016-9158        7.5      1        YES        0.95        
+  BACnet       47808    CVE-2019-13945       9.8      2        NO         0.5         
+  BACnet       47808    CVE-2016-9158        7.5      2        NO         0.5         
+
+  Total assets : 3
+  Total CVEs   : 7
+  Under attack : 5
+  Nulls left   : epss, kev_listed, risk_score
+
+================================================
+[0;32m   CAVE-OT Pipeline Complete![0m
+================================================
+
+  Output : /home/caveot/cave_ot_test/model_input.json
+  Next   : NVD + EPSS API → ML Model → Dashboard
+

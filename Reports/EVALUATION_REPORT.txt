@@ -1,0 +1,106 @@
+================================================================================
+CAVE-OT MODEL EVALUATION REPORT
+================================================================================
+
+Generated: 2026-03-12 21:30:05
+Test Set: 1199 CVEs (20% held-out, NEVER seen during training)
+Train Set: 4792 CVEs (80%)
+
+================================================================================
+OVERALL METRICS
+================================================================================
+Hit@1  (Precision@1): 0.8499  (84.99%)
+Hit@5  (Recall@5):    0.8949  (89.49%)
+Hit@10 (Recall@10):   0.9016 (90.16%)
+MRR:                  0.8688
+
+Similarity Scores:
+  Mean:   0.6362
+  Median: 0.6603
+  Std:    0.2595
+  Range:  0.1020 - 1.0000
+
+================================================================================
+PER-VENDOR BREAKDOWN (vendors with ≥5 test samples)
+================================================================================
+Vendor                          Count    Hit@1    Hit@5   Hit@10      MRR
+--------------------------------------------------------------------------------
+wegia                              25  100.0%  100.0%  100.0%   1.0000
+tenda                              11  100.0%  100.0%  100.0%   1.0000
+codesys                            17  100.0%  100.0%  100.0%   1.0000
+mitsubishi electric                23  100.0%  100.0%  100.0%   1.0000
+aveva                               9  100.0%  100.0%  100.0%   1.0000
+oretnom23                           5  100.0%  100.0%  100.0%   1.0000
+openrobotics                        7  100.0%  100.0%  100.0%   1.0000
+tibco                               5  100.0%  100.0%  100.0%   1.0000
+siemens                           337   98.8%   99.7%  100.0%   0.9913
+rockwell automation                51   98.0%  100.0%  100.0%   0.9902
+schneider electric                137   95.6%  100.0%  100.0%   0.9735
+advantech                          55   94.5%   96.4%   96.4%   0.9545
+wago                               17   94.1%   94.1%  100.0%   0.9496
+phoenix contact                    15   93.3%  100.0%  100.0%   0.9556
+delta electronics                  40   92.5%  100.0%  100.0%   0.9508
+omron                              13   92.3%   92.3%   92.3%   0.9231
+moxa                               64   92.2%   96.9%   96.9%   0.9401
+yokogawa                           12   91.7%  100.0%  100.0%   0.9583
+abb                                22   86.4%   95.5%   95.5%   0.8939
+softlabbd                           5   80.0%  100.0%  100.0%   0.9000
+honeywell                          22   72.7%   81.8%   81.8%   0.7652
+emerson                            18   72.2%   83.3%   83.3%   0.7778
+ge                                  7   71.4%   71.4%  100.0%   0.7444
+zabbix                             15   53.3%   80.0%   93.3%   0.6706
+hitachienergy                      11   45.5%   90.9%   90.9%   0.6515
+
+================================================================================
+NEW DEVICE SIMULATION
+================================================================================
+
+1. Query: siemens simatic s7-1200 v4.1 profinet
+   1. CVE-2016-2846 cvss=6.5 epss=0.002 kev=0
+   2. CVE-2018-13800 cvss=7.3 epss=0.002 kev=0
+   3. CVE-2016-3949 cvss=7.5 epss=0.049 kev=0
+
+2. Query: schneider electric modicon m580 2.80 modbus
+   1. CVE-2019-6848 cvss=8.6 epss=0.005 kev=0
+   2. CVE-2020-7543 cvss=7.5 epss=0.004 kev=0
+   3. CVE-2020-7537 cvss=7.5 epss=0.004 kev=0
+
+3. Query: rockwell automation controllogix 1756 ethernet ip
+   1. CVE-2018-19016 cvss=7.5 epss=0.000 kev=0
+   2. CVE-2024-34026 cvss=9.0 epss=0.087 kev=0
+   3. CVE-2023-3596 cvss=7.5 epss=0.017 kev=0
+
+4. Query: advantech webaccess scada 8.4 http
+   1. CVE-2025-46268 cvss=6.3 epss=0.000 kev=0
+   2. CVE-2018-5443 cvss=5.3 epss=0.001 kev=0
+   3. CVE-2025-14850 cvss=8.1 epss=0.006 kev=0
+
+5. Query: moxa nport 5150 serial device server
+   1. CVE-2017-16715 cvss=7.5 epss=0.002 kev=0
+   2. CVE-2017-14028 cvss=7.5 epss=0.004 kev=0
+   3. CVE-2017-16719 cvss=7.5 epss=0.003 kev=0
+
+6. Query: abb ac500 plc modbus tcp
+   1. CVE-2022-28613 cvss=7.5 epss=0.004 kev=0
+   2. CVE-2022-2081 cvss=7.5 epss=0.002 kev=0
+   3. CVE-2023-0027 cvss=5.3 epss=0.001 kev=0
+
+7. Query: delta electronics dvp plc modbus
+   1. CVE-2018-10594 cvss=9.8 epss=0.782 kev=0
+   2. CVE-2025-62581 cvss=9.8 epss=0.000 kev=0
+   3. CVE-2025-62582 cvss=9.8 epss=0.000 kev=0
+
+8. Query: mitsubishi electric melsec iq-r ethernet
+   1. CVE-2022-25156 cvss=8.1 epss=0.004 kev=0
+   2. CVE-2021-20611 cvss=7.5 epss=0.004 kev=0
+   3. CVE-2022-25160 cvss=5.9 epss=0.004 kev=0
+
+9. Query: codesys runtime v3.5 industrial
+   1. CVE-2020-12069 cvss=7.8 epss=0.001 kev=0
+   2. CVE-2020-10245 cvss=9.8 epss=0.014 kev=0
+   3. CVE-2019-18858 cvss=9.8 epss=0.004 kev=0
+
+10. Query: wago 750 plc modbus
+   1. CVE-2019-10712 cvss=9.8 epss=0.015 kev=0
+   2. CVE-2020-12505 cvss=8.2 epss=0.003 kev=0
+   3. CVE-2023-1150 cvss=7.5 epss=0.002 kev=0

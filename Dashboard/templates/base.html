@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAVE-OT — {% block title %}Dashboard{% endblock %}</title>
+
+    <!-- Bootstrap 5 -->
+    <link href="/static/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="/static/bootstrap-icons.css" rel="stylesheet">
+    <!-- Fonts: loaded from Google Fonts (requires internet) -->
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet" onerror="this.remove()">
+
+    <style>
+        :root {
+            --bg-dark:      #050a0f;
+            --bg-panel:     #0a1520;
+            --bg-card:      #0d1e2e;
+            --bg-card2:     #0f2235;
+            --accent-cyan:  #00d4ff;
+            --accent-green: #00ff88;
+            --accent-red:   #ff3355;
+            --accent-orange:#ff8c00;
+            --accent-yellow:#ffd700;
+            --text-primary: #e0f4ff;
+            --text-muted:   #5a8a9f;
+            --border:       #1a3a50;
+            --border-glow:  rgba(0,212,255,0.3);
+            --critical:     #ff3355;
+            --high:         #ff8c00;
+            --medium:       #ffd700;
+            --low:          #00ff88;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 15px;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── Animated grid background ── */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-image:
+                linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            position: fixed;
+            top: 0; left: 0;
+            width: 240px;
+            height: 100vh;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0;
+            width: 1px; height: 100%;
+            background: linear-gradient(to bottom, transparent, var(--accent-cyan), transparent);
+            opacity: 0.4;
+        }
+
+        .sidebar-logo {
+            padding: 24px 20px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-logo .logo-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 18px;
+            font-weight: 900;
+            color: var(--accent-cyan);
+            letter-spacing: 2px;
+            text-shadow: 0 0 20px rgba(0,212,255,0.5);
+        }
+
+        .sidebar-logo .logo-sub {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            margin-top: 2px;
+        }
+
+        .sidebar-logo .logo-badge {
+            display: inline-block;
+            background: rgba(0,212,255,0.1);
+            border: 1px solid rgba(0,212,255,0.3);
+            color: var(--accent-cyan);
+            font-size: 9px;
+            font-family: 'Share Tech Mono', monospace;
+            padding: 2px 8px;
+            border-radius: 2px;
+            margin-top: 6px;
+            letter-spacing: 1px;
+        }
+
+        .sidebar-nav {
+            padding: 16px 0;
+            flex: 1;
+        }
+
+        .nav-section-label {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 9px;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            padding: 8px 20px 4px;
+            text-transform: uppercase;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 20px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+            position: relative;
+        }
+
+        .nav-link i { font-size: 16px; width: 18px; }
+
+        .nav-link:hover {
+            color: var(--accent-cyan);
+            background: rgba(0,212,255,0.05);
+            border-left-color: rgba(0,212,255,0.4);
+        }
+
+        .nav-link.active {
+            color: var(--accent-cyan);
+            background: rgba(0,212,255,0.08);
+            border-left-color: var(--accent-cyan);
+        }
+
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            right: 0; top: 0;
+            width: 1px; height: 100%;
+            background: var(--accent-cyan);
+            opacity: 0.3;
+        }
+
+        /* ── Status indicator in sidebar ── */
+        .sidebar-status {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            display: inline-block;
+            margin-right: 6px;
+            box-shadow: 0 0 8px var(--accent-green);
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .status-text {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            color: var(--accent-green);
+        }
+
+        /* ── Main content ── */
+        .main-content {
+            margin-left: 240px;
+            min-height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ── Top bar ── */
+        .topbar {
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .topbar-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .topbar-time {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .topbar-badge {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            background: rgba(0,212,255,0.1);
+            border: 1px solid rgba(0,212,255,0.25);
+            color: var(--accent-cyan);
+            padding: 3px 10px;
+            border-radius: 2px;
+            letter-spacing: 1px;
+        }
+
+        .topbar-scan-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .topbar-scan-btn:hover { background: rgba(0,212,255,0.2); }
+        .topbar-scan-btn:disabled { cursor: wait; opacity: 0.6; }
+        .topbar-scan-btn.running {
+            background: rgba(0,255,136,0.1);
+            border-color: rgba(0,255,136,0.35);
+            color: var(--accent-green, #00ff88);
+        }
+        .topbar-scan-btn.running:hover { background: rgba(0,255,136,0.2); }
+        .topbar-scan-btn.stopped {
+            background: rgba(255,51,85,0.08);
+            border-color: rgba(255,51,85,0.3);
+            color: var(--accent-red, #ff3355);
+        }
+        .scan-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: currentColor;
+            display: inline-block;
+        }
+        .topbar-scan-btn.running .scan-dot { animation: scan-pulse 1.5s ease-in-out infinite; }
+        @keyframes scan-pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
+            50% { opacity: 0.5; }
+        }
+
+        /* ── Page content ── */
+        .page-content {
+            padding: 28px;
+            position: relative;
+            min-height: 420px;
+        }
+
+        /* ── Scan-offline overlay (shown on every page whenever passive scan is stopped) ── */
+        .scan-offline-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: rgba(5, 10, 16, 0.94);
+            backdrop-filter: blur(3px);
+            z-index: 40;
+            text-align: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.7s ease;
+        }
+        .scan-offline-overlay.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .scan-offline-overlay .offline-icon {
+            font-size: 42px;
+            color: var(--text-muted);
+            animation: offlinePulse 2.6s ease-in-out infinite;
+        }
+        @keyframes offlinePulse {
+            0%, 100% { opacity: 0.35; transform: scale(1); }
+            50%      { opacity: 0.65; transform: scale(1.08); }
+        }
+        .scan-offline-overlay .offline-title {
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 4px;
+            font-size: 16px;
+            color: var(--text-muted);
+        }
+        .scan-offline-overlay .offline-sub {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 12px;
+            color: var(--text-muted);
+            opacity: 0.7;
+        }
+
+        /* ── Cards ── */
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s, transform 0.2s;
+        }
+
+        .stat-card:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-2px);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 2px;
+        }
+
+        .stat-card.cyan::before   { background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent); }
+        .stat-card.green::before  { background: linear-gradient(90deg, transparent, var(--accent-green), transparent); }
+        .stat-card.red::before    { background: linear-gradient(90deg, transparent, var(--accent-red), transparent); }
+        .stat-card.orange::before { background: linear-gradient(90deg, transparent, var(--accent-orange), transparent); }
+        .stat-card.yellow::before { background: linear-gradient(90deg, transparent, var(--accent-yellow), transparent); }
+        .stat-card.purple::before { background: linear-gradient(90deg, transparent, #b968ff, transparent); }
+
+        .stat-label {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-family: 'Orbitron', monospace;
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .stat-value.cyan   { color: var(--accent-cyan);   text-shadow: 0 0 20px rgba(0,212,255,0.4); }
+        .stat-value.green  { color: var(--accent-green);  text-shadow: 0 0 20px rgba(0,255,136,0.4); }
+        .stat-value.red    { color: var(--accent-red);    text-shadow: 0 0 20px rgba(255,51,85,0.4); }
+        .stat-value.orange { color: var(--accent-orange); text-shadow: 0 0 20px rgba(255,140,0,0.4); }
+        .stat-value.yellow { color: var(--accent-yellow); text-shadow: 0 0 20px rgba(255,215,0,0.4); }
+        .stat-value.purple { color: #b968ff; text-shadow: 0 0 20px rgba(185,104,255,0.4); }
+
+        .stat-icon {
+            position: absolute;
+            right: 16px; top: 16px;
+            font-size: 28px;
+            opacity: 0.12;
+        }
+
+        .stat-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        /* ── Panel ── */
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: var(--bg-card2);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .panel-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .panel-body { padding: 20px; }
+
+        /* ── Tables ── */
+        .ot-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .ot-table thead th {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-card2);
+            white-space: nowrap;
+        }
+
+        .ot-table tbody tr {
+            border-bottom: 1px solid rgba(26,58,80,0.5);
+            transition: background 0.15s;
+        }
+
+        .ot-table tbody tr:hover {
+            background: rgba(0,212,255,0.04);
+        }
+
+        .ot-table tbody td {
+            padding: 10px 14px;
+            color: var(--text-primary);
+            vertical-align: middle;
+        }
+
+        /* ── Badges ── */
+        .tier-badge {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 1px;
+            padding: 3px 8px;
+            border-radius: 2px;
+            font-weight: 600;
+        }
+
+        .tier-CRITICAL { background: rgba(255,51,85,0.15);   color: var(--critical);     border: 1px solid rgba(255,51,85,0.4); }
+        .tier-HIGH     { background: rgba(255,140,0,0.15);   color: var(--high);         border: 1px solid rgba(255,140,0,0.4); }
+        .tier-MEDIUM   { background: rgba(255,215,0,0.15);   color: var(--medium);       border: 1px solid rgba(255,215,0,0.4); }
+        .tier-LOW      { background: rgba(0,255,136,0.1);    color: var(--low);          border: 1px solid rgba(0,255,136,0.3); }
+
+        .badge-anomaly { background: rgba(185,104,255,0.15); color: #b968ff; border: 1px solid rgba(185,104,255,0.4); }
+
+        .status-ACTIVE   { color: var(--accent-green); }
+        .status-INACTIVE { color: var(--text-muted); }
+
+        .zone-OT { color: var(--accent-orange); font-family: 'Share Tech Mono', monospace; font-size: 11px; }
+        .zone-IT { color: var(--accent-cyan);   font-family: 'Share Tech Mono', monospace; font-size: 11px; }
+
+        .kev-badge {
+            background: rgba(255,51,85,0.2);
+            color: var(--critical);
+            border: 1px solid rgba(255,51,85,0.5);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 2px;
+            letter-spacing: 1px;
+        }
+
+        /* ── Risk bar ── */
+        .risk-bar-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .risk-bar {
+            flex: 1;
+            height: 4px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .risk-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.5s ease;
+        }
+
+        .risk-val {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 12px;
+            min-width: 32px;
+            text-align: right;
+        }
+
+        /* ── Section heading ── */
+        .section-heading {
+            font-family: 'Orbitron', monospace;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-heading::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, var(--border), transparent);
+        }
+
+        /* ── Scan line animation ── */
+        @keyframes scanline {
+            0%   { transform: translateY(-100%); }
+            100% { transform: translateY(100vh); }
+        }
+
+        .scanline {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(0,212,255,0.08), transparent);
+            animation: scanline 8s linear infinite;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* ── Loading spinner ── */
+        .ot-spinner {
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 2px solid rgba(0,212,255,0.2);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        /* ── Buttons ── */
+        .btn-ot {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 12px;
+            letter-spacing: 1px;
+            padding: 8px 18px;
+            border-radius: 2px;
+            border: 1px solid var(--accent-cyan);
+            background: rgba(0,212,255,0.08);
+            color: var(--accent-cyan);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-ot:hover {
+            background: rgba(0,212,255,0.18);
+            box-shadow: 0 0 12px rgba(0,212,255,0.2);
+        }
+
+        .btn-ot-danger {
+            border-color: var(--accent-red);
+            background: rgba(255,51,85,0.08);
+            color: var(--accent-red);
+        }
+
+        .btn-ot-danger:hover {
+            background: rgba(255,51,85,0.18);
+            box-shadow: 0 0 12px rgba(255,51,85,0.2);
+        }
+
+        .btn-ot-green {
+            border-color: var(--accent-green);
+            background: rgba(0,255,136,0.08);
+            color: var(--accent-green);
+        }
+
+        .btn-ot-green:hover {
+            background: rgba(0,255,136,0.18);
+            box-shadow: 0 0 12px rgba(0,255,136,0.2);
+        }
+
+        /* ── Chart containers ── */
+        .chart-container {
+            position: relative;
+            width: 100%;
+        }
+
+        /* ── Modal ── */
+        .modal-content {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-primary);
+        }
+
+        .modal-header {
+            border-bottom: 1px solid var(--border);
+            padding: 16px 20px;
+        }
+
+        .modal-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 13px;
+            color: var(--accent-cyan);
+            letter-spacing: 2px;
+        }
+
+        .modal-body { padding: 20px; }
+
+        .btn-close { filter: invert(1) brightness(0.5); }
+
+        /* ── Terminal output ── */
+        .terminal {
+            background: #020c14;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 16px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 12px;
+            color: var(--accent-green);
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+
+        .terminal .t-error { color: var(--accent-red); }
+        .terminal .t-warn  { color: var(--accent-yellow); }
+        .terminal .t-info  { color: var(--accent-cyan); }
+        .terminal .t-ok    { color: var(--accent-green); }
+
+        /* ── Tooltip ── */
+        .ot-tooltip {
+            position: relative;
+            cursor: help;
+        }
+
+        /* ── Filter bar ── */
+        .filter-bar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .filter-btn {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 1px;
+            padding: 5px 14px;
+            border-radius: 2px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .filter-btn:hover, .filter-btn.active {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+            background: rgba(0,212,255,0.06);
+        }
+
+        .filter-btn.f-critical.active { border-color: var(--critical); color: var(--critical); background: rgba(255,51,85,0.08); }
+        .filter-btn.f-high.active     { border-color: var(--high);     color: var(--high);     background: rgba(255,140,0,0.08); }
+        .filter-btn.f-medium.active   { border-color: var(--medium);   color: var(--medium);   background: rgba(255,215,0,0.08); }
+        .filter-btn.f-low.active      { border-color: var(--low);      color: var(--low);      background: rgba(0,255,136,0.06); }
+
+        /* ── Search input ── */
+        .ot-search {
+            background: var(--bg-card2);
+            border: 1px solid var(--border);
+            border-radius: 2px;
+            color: var(--text-primary);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 12px;
+            padding: 6px 12px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .ot-search:focus {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 8px rgba(0,212,255,0.1);
+        }
+
+        .ot-search::placeholder { color: var(--text-muted); }
+
+        /* ── Criticality bar ── */
+        .crit-bar {
+            width: 60px; height: 4px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 2px;
+            overflow: hidden;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .crit-fill {
+            height: 100%;
+            border-radius: 2px;
+            background: linear-gradient(90deg, var(--accent-green), var(--accent-orange), var(--accent-red));
+        }
+
+        /* ── Empty state ── */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            display: block;
+            margin-bottom: 12px;
+            opacity: 0.3;
+        }
+
+        .empty-state p {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .sidebar { width: 60px; }
+            .sidebar-logo .logo-title,
+            .sidebar-logo .logo-sub,
+            .sidebar-logo .logo-badge,
+            .nav-link span,
+            .nav-section-label,
+            .sidebar-status .status-text { display: none; }
+            .main-content { margin-left: 60px; }
+            .nav-link { justify-content: center; padding: 12px; }
+            .nav-link i { width: auto; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Scan line effect -->
+<div class="scanline"></div>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+    <div class="sidebar-logo">
+        <div class="logo-title">CAVE-OT</div>
+        <div class="logo-sub">CONTEXT-AWARE VULNERABILITY ENGINE</div>
+        <div class="logo-badge">OT/ICS SECURITY</div>
+    </div>
+
+    <div class="sidebar-nav">
+        <div class="nav-section-label">MONITORING</div>
+        <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">
+            <i class="bi bi-grid-1x2-fill"></i>
+            <span>Dashboard</span>
+        </a>
+        <a href="/assets" class="nav-link {% if request.path == '/assets' %}active{% endif %}">
+            <i class="bi bi-hdd-network-fill"></i>
+            <span>Assets</span>
+        </a>
+        <a href="/vulnerabilities" class="nav-link {% if request.path == '/vulnerabilities' %}active{% endif %}">
+            <i class="bi bi-shield-exclamation"></i>
+            <span>Vulnerabilities</span>
+        </a>
+        <a href="/alerts" class="nav-link {% if request.path == '/alerts' %}active{% endif %}">
+            <i class="bi bi-bell-fill"></i>
+            <span>Alerts</span>
+        </a>
+        <a href="/policy" class="nav-link {% if request.path == '/policy' %}active{% endif %}">
+            <i class="bi bi-shield-check"></i>
+            <span>Policy Compliance</span>
+        </a>
+        <a href="/attack_paths" class="nav-link {% if request.path == '/attack_paths' %}active{% endif %}">
+            <i class="bi bi-diagram-3-fill"></i>
+            <span>Attack Paths</span>
+        </a>
+        <a href="/remediation" class="nav-link {% if request.path == '/remediation' %}active{% endif %}">
+            <i class="bi bi-robot"></i>
+            <span>Remediation Advisor</span>
+        </a>
+
+    </div>
+
+    <div class="sidebar-status">
+        <span class="status-dot" id="sidebar-status-dot"></span>
+        <span class="status-text" id="sidebar-status-text">CHECKING...</span>
+    </div>
+</nav>
+
+<!-- Main content -->
+<div class="main-content">
+    <!-- Top bar -->
+    <div class="topbar">
+        <div class="topbar-title">{% block page_heading %}Dashboard{% endblock %}</div>
+        <div class="topbar-right">
+            <span class="topbar-time" id="topbar-clock"></span>
+            <button class="topbar-badge topbar-scan-btn" id="scan-toggle-btn" onclick="toggleScan()">
+                <span class="scan-dot" id="scan-dot"></span>
+                <span id="scan-btn-label">CHECKING...</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Page content -->
+    <div class="page-content">
+        {% block content %}{% endblock %}
+        <div id="scan-offline-overlay" class="scan-offline-overlay visible">
+            <i class="bi bi-power offline-icon"></i>
+            <div class="offline-title">SYSTEM OFFLINE</div>
+            <div class="offline-sub">Start passive scan mode above to begin live monitoring</div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="/static/bootstrap.bundle.min.js"></script>
+<!-- Chart.js -->
+<script src="/static/chart.min.js"></script>
+
+<script>
+    // Live clock
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('topbar-clock').textContent =
+            now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // ── Shared scan-state pub/sub + offline overlay (used by every page) ───
+    // A page can opt in to owning its own "coming back online" reveal (e.g.
+    // the Dashboard's power-up animation) by setting CaveOT._customPowerUp
+    // = true and calling CaveOT.hideOverlay() itself once ready. Every other
+    // page just gets the overlay hidden the instant scanning starts.
+    window.CaveOT = window.CaveOT || {};
+    window.CaveOT._customPowerUp = false;
+    (function() {
+        let known = null;
+        const listeners = [];
+        window.CaveOT.onScanState = function(fn) {
+            listeners.push(fn);
+            if (known !== null) fn(known, false);
+        };
+        window.CaveOT.hideOverlay = function() {
+            const overlay = document.getElementById('scan-offline-overlay');
+            if (overlay) overlay.classList.remove('visible');
+        };
+        window.CaveOT._notifyScanState = function(running) {
+            const changed = known !== null && known !== running;
+            known = running;
+            const overlay = document.getElementById('scan-offline-overlay');
+            if (overlay) {
+                if (!running) {
+                    overlay.classList.add('visible');
+                } else if (!(changed && window.CaveOT._customPowerUp)) {
+                    overlay.classList.remove('visible');
+                }
+                // else: a custom-power-up page owns hiding the overlay
+            }
+            const dot  = document.getElementById('sidebar-status-dot');
+            const text = document.getElementById('sidebar-status-text');
+            if (dot && text) {
+                if (running) {
+                    dot.style.background  = 'var(--accent-green)';
+                    dot.style.boxShadow   = '0 0 8px var(--accent-green)';
+                    text.style.color      = 'var(--accent-green)';
+                    text.textContent      = 'SYSTEM ONLINE';
+                } else {
+                    dot.style.background  = 'var(--accent-red)';
+                    dot.style.boxShadow   = '0 0 8px var(--accent-red)';
+                    text.style.color      = 'var(--accent-red)';
+                    text.textContent      = 'SYSTEM OFFLINE';
+                }
+            }
+            listeners.forEach(fn => fn(running, changed));
+        };
+    })();
+
+    // ── Passive scan control (docker compose up/down) ──────────────────────
+    let scanBusy = false;
+
+    function renderScanState(running, transientLabel) {
+        const btn   = document.getElementById('scan-toggle-btn');
+        const label = document.getElementById('scan-btn-label');
+        if (!btn) return;
+        btn.classList.remove('running', 'stopped');
+        if (transientLabel) {
+            label.textContent = transientLabel;
+            return;
+        }
+        if (running) {
+            btn.classList.add('running');
+            label.textContent = 'PASSIVE SCAN — RUNNING (click to stop)';
+        } else {
+            btn.classList.add('stopped');
+            label.textContent = 'PASSIVE SCAN — STOPPED (click to start)';
+        }
+        window.CaveOT._notifyScanState(running);
+    }
+
+    async function refreshScanStatus() {
+        try {
+            const resp = await fetch('/api/scan/status');
+            const data = await resp.json();
+            if (!scanBusy) renderScanState(data.running);
+            return data.running;
+        } catch (e) {
+            if (!scanBusy) renderScanState(false, 'STATUS UNKNOWN');
+            return null;
+        }
+    }
+
+    async function toggleScan() {
+        if (scanBusy) return;
+        const btn = document.getElementById('scan-toggle-btn');
+        const running = await refreshScanStatus();
+        scanBusy = true;
+        btn.disabled = true;
+        try {
+            if (running) {
+                renderScanState(null, 'STOPPING...');
+                await fetch('/api/scan/stop', { method: 'POST' });
+                // container teardown is near-instant
+                setTimeout(async () => { await refreshScanStatus(); scanBusy = false; btn.disabled = false; }, 3000);
+            } else {
+                renderScanState(null, 'STARTING... (opens Docker Desktop if needed, up to ~3 min)');
+                await fetch('/api/scan/start', { method: 'POST' });
+                // Docker Desktop cold start + build can take a while; poll until containers report running
+                const deadline = Date.now() + 240000;
+                const poll = setInterval(async () => {
+                    const nowRunning = await refreshScanStatus();
+                    if (nowRunning || Date.now() > deadline) {
+                        clearInterval(poll);
+                        scanBusy = false;
+                        btn.disabled = false;
+                        if (!nowRunning) renderScanState(false, 'START FAILED — CHECK LOGS');
+                    }
+                }, 4000);
+            }
+        } catch (e) {
+            scanBusy = false;
+            btn.disabled = false;
+            renderScanState(false, 'ERROR — RETRY');
+        }
+    }
+
+    refreshScanStatus();
+    setInterval(() => { if (!scanBusy) refreshScanStatus(); }, 8000);
+
+    // Chart.js global defaults for dark theme
+    Chart.defaults.color = '#5a8a9f';
+    Chart.defaults.borderColor = '#1a3a50';
+    Chart.defaults.font.family = "'Share Tech Mono', monospace";
+    Chart.defaults.font.size = 11;
+
+    // Risk color helper
+    function riskColor(score) {
+        if (score >= 8) return '#ff3355';
+        if (score >= 6) return '#ff8c00';
+        if (score >= 4) return '#ffd700';
+        return '#00ff88';
+    }
+
+    function tierColor(tier) {
+        const map = { CRITICAL: '#ff3355', HIGH: '#ff8c00', MEDIUM: '#ffd700', LOW: '#00ff88' };
+        return map[tier] || '#5a8a9f';
+    }
+
+    function tierBadge(tier) {
+        return `<span class="tier-badge tier-${tier}">${tier}</span>`;
+    }
+
+    // Behavior-based flag — no CVE name attached, raised when a device's
+    // live traffic looks statistically unusual vs. its own learned baseline
+    // for at least 2 consecutive cycles (avoids flagging a single noisy blip).
+    function anomalyBadge(isAnomalous, score, reason) {
+        if (!isAnomalous) return '';
+        const pct = Math.round((score || 0) * 100);
+        const reasonLine = reason
+            ? `<div style="font-size:9px;color:#b968ff;opacity:0.8;margin-top:2px">${reason}</div>` : '';
+        return `<span class="tier-badge badge-anomaly">ANOMALOUS ${pct}%</span>${reasonLine}`;
+    }
+
+    function riskBar(score) {
+        const pct = Math.min(100, (score / 10) * 100);
+        const color = riskColor(score);
+        return `<div class="risk-bar-wrap">
+            <div class="risk-bar"><div class="risk-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+            <span class="risk-val" style="color:${color}">${score ? score.toFixed(1) : '—'}</span>
+        </div>`;
+    }
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>
