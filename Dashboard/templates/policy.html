@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block title %}Policy Compliance{% endblock %}
 {% block page_heading %}Policy Compliance{% endblock %}
 
@@ -32,8 +32,9 @@
     </div>
     <div class="col-6 col-xl-3">
         <div class="stat-card orange">
-            <div class="stat-label">Avg Score</div>
+            <div class="stat-label">Avg Compliance</div>
             <div class="stat-value orange" id="pc-avg">—</div>
+            <div class="stat-sub" id="pc-avg-sub"></div>
             <div class="stat-sub" id="pc-lastcheck">Never checked</div>
             <i class="bi bi-graph-up stat-icon" style="color:var(--accent-orange)"></i>
         </div>
@@ -77,7 +78,7 @@
         <table class="ot-table">
             <thead><tr>
                 <th>Asset</th><th>Zone</th><th>Service</th><th>Status</th>
-                <th>Score</th><th>Confidence</th><th>Issues</th><th>Last Check</th><th>Action</th>
+                <th>Risk Level</th><th>Certainty</th><th>Issues</th><th>Last Check</th><th>Action</th>
             </tr></thead>
             <tbody id="assets-tbody"></tbody>
         </table>
@@ -96,7 +97,89 @@
 
 {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', loadAll);
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Convert raw compliance score (0.0–1.0) to a human-readable risk level.
+ *  0–39%  → CRITICAL RISK  (red)
+ * 40–59%  → POOR           (orange)
+ * 60–79%  → FAIR           (yellow)
+ * 80–100% → GOOD           (green)
+ */
+function scoreToRiskLevel(score) {
+    if (score == null) return { label: '—', color: 'var(--text-muted)', pct: 0 };
+    const pct = Math.round(score * 100);
+    if (pct >= 80) return { label: 'GOOD',          color: 'var(--accent-green)',  pct };
+    if (pct >= 60) return { label: 'FAIR',           color: 'var(--accent-yellow)', pct };
+    if (pct >= 40) return { label: 'POOR',           color: 'var(--accent-orange)', pct };
+                   return { label: 'CRITICAL RISK',  color: 'var(--accent-red)',    pct };
+}
+
+/**
+ * Render a visual risk bar + label for the Score column.
+ */
+function riskLevelCell(score) {
+    if (score == null) return '<span style="color:var(--text-muted)">—</span>';
+    const { label, color, pct } = scoreToRiskLevel(score);
+    return `
+        <div style="min-width:130px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <span style="font-family:'Share Tech Mono',monospace;font-size:11px;font-weight:700;color:${color}">${label}</span>
+                <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:${color}">${pct}%</span>
+            </div>
+            <div style="background:rgba(255,255,255,0.06);border-radius:3px;height:5px;overflow:hidden">
+                <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;transition:width 0.6s ease"></div>
+            </div>
+        </div>`;
+}
+
+/**
+ * Convert model confidence (0.0–1.0) to a plain-language certainty badge.
+ * HIGH  ≥ 85%  — model is very sure about this result
+ * MED   60–84% — model is reasonably sure
+ * LOW   < 60%  — result may be less reliable
+ */
+function certaintyBadge(conf) {
+    if (conf == null) return '<span style="color:var(--text-muted)">—</span>';
+    const pct = Math.round(conf * 100);
+    let label, color, bg;
+    if (pct >= 85) { label = 'HIGH';   color = 'var(--accent-green)';  bg = 'rgba(0,255,136,0.1)'; }
+    else if (pct >= 60) { label = 'MED';  color = 'var(--accent-yellow)'; bg = 'rgba(255,215,0,0.1)'; }
+    else                { label = 'LOW';  color = 'var(--accent-orange)'; bg = 'rgba(255,140,0,0.1)'; }
+    return `<span title="Model certainty: ${pct}% — how confident the AI is in this result"
+                  style="font-family:'Share Tech Mono',monospace;font-size:10px;font-weight:700;
+                         color:${color};background:${bg};border:1px solid ${color};
+                         border-radius:3px;padding:2px 7px;cursor:help">${label} (${pct}%)</span>`;
+}
+
+// ── Data loading ──────────────────────────────────────────────────────────────
+
+// Only fetch data when scan is running
+let pcLoaded = false;
+CaveOT.onScanState((running) => {
+    if (running) {
+        if (!pcLoaded) {
+            pcLoaded = true;
+            loadAll();
+        }
+    } else {
+        pcLoaded = false;
+        ['pc-total','pc-compliant','pc-noncompliant'].forEach(id => {
+            document.getElementById(id).textContent = '—';
+        });
+        document.getElementById('pc-avg').textContent = '—';
+        document.getElementById('pc-avg-sub').textContent = '';
+        document.getElementById('pc-checked').textContent = '— checked';
+        document.getElementById('pc-compliant-pct').textContent = '—%';
+        document.getElementById('pc-noncompliant-pct').textContent = '—%';
+        document.getElementById('pc-lastcheck').textContent = 'Never checked';
+        document.getElementById('zone-cards').innerHTML = '';
+        document.getElementById('assets-loading').style.display = 'none';
+        document.getElementById('assets-table-wrap').style.display = 'none';
+        document.getElementById('violations-body').innerHTML = '';
+    }
+});
 function loadAll() { loadSummary(); loadAssets(); }
 
 async function loadSummary() {
@@ -105,72 +188,177 @@ async function loadSummary() {
         const d = await r.json();
         if (d.error) { console.error(d.error); return; }
         const s = d.statistics, checked = s.checked_assets || 1;
+
         document.getElementById('pc-total').textContent = s.total_assets;
         document.getElementById('pc-checked').textContent = s.checked_assets + ' checked';
         document.getElementById('pc-compliant').textContent = s.compliant_count;
         document.getElementById('pc-noncompliant').textContent = s.non_compliant_count;
-        document.getElementById('pc-compliant-pct').textContent = Math.round((s.compliant_count/checked)*100)+'%';
-        document.getElementById('pc-noncompliant-pct').textContent = Math.round((s.non_compliant_count/checked)*100)+'%';
-        document.getElementById('pc-avg').textContent = s.avg_compliance_score.toFixed(2);
-        if (s.last_check) document.getElementById('pc-lastcheck').textContent = 'Last: '+new Date(s.last_check).toLocaleString();
+        document.getElementById('pc-compliant-pct').textContent = Math.round((s.compliant_count / checked) * 100) + '%';
+        document.getElementById('pc-noncompliant-pct').textContent = Math.round((s.non_compliant_count / checked) * 100) + '%';
 
+        // Avg score → show as percentage + risk level label
+        const avgPct = Math.round((s.avg_compliance_score || 0) * 100);
+        const avgRisk = scoreToRiskLevel(s.avg_compliance_score);
+        document.getElementById('pc-avg').textContent = avgPct + '%';
+        document.getElementById('pc-avg').style.color = avgRisk.color;
+        const subEl = document.getElementById('pc-avg-sub');
+        if (subEl) subEl.textContent = avgRisk.label;
+
+        if (s.last_check) document.getElementById('pc-lastcheck').textContent = 'Last: ' + new Date(s.last_check).toLocaleString();
+
+        // Zone cards
         const zc = document.getElementById('zone-cards');
-        if (!d.zones||!d.zones.length) { zc.innerHTML='<div style="color:var(--text-muted);text-align:center;padding:12px;font-family:Share Tech Mono,monospace;font-size:12px">NO ZONE DATA</div>'; }
-        else { zc.innerHTML = d.zones.map(z => {
-            const pct=z.total>0?Math.round((z.compliant/z.total)*100):0;
-            const col=pct>=70?'var(--accent-green)':pct>=40?'var(--accent-orange)':'var(--accent-red)';
-            return '<div class="col-12 col-md-6 col-xl-3"><div style="background:var(--bg-dark);border:1px solid var(--border);border-radius:4px;padding:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span class="zone-'+z.zone+'" style="font-size:13px">'+z.zone+'</span><span style="font-family:Orbitron,monospace;font-size:18px;color:'+col+'">'+pct+'%</span></div><div style="background:rgba(255,255,255,0.05);border-radius:2px;height:4px;margin-bottom:8px"><div style="width:'+pct+'%;height:100%;background:'+col+';border-radius:2px"></div></div><div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--text-muted)">'+z.compliant+'/'+z.total+' compliant &middot; avg '+z.avg_score.toFixed(2)+'</div></div></div>';
-        }).join(''); }
-
-        const vb = document.getElementById('violations-body');
-        if (!d.top_non_compliant||!d.top_non_compliant.length) {
-            vb.innerHTML='<div style="color:var(--accent-green);font-family:Share Tech Mono,monospace;font-size:12px;text-align:center;padding:20px">NO VIOLATIONS FOUND</div>';
+        if (!d.zones || !d.zones.length) {
+            zc.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:12px;font-family:Share Tech Mono,monospace;font-size:12px">NO ZONE DATA</div>';
         } else {
-            vb.innerHTML = d.top_non_compliant.map(a =>
-                '<div style="border-left:3px solid var(--accent-red);padding:12px 16px;margin-bottom:12px;background:rgba(255,51,85,0.04)"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><div><span style="font-weight:600;font-size:14px">'+a.vendor+' '+a.product+'</span><span class="zone-'+a.zone+'" style="margin-left:8px">'+a.zone+'</span><span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--accent-orange);margin-left:6px">'+a.service+':'+a.port+'</span></div><span style="font-family:Orbitron,monospace;font-size:16px;color:var(--accent-red)">'+a.compliance_score.toFixed(2)+'</span></div><div style="font-size:12px;color:var(--text-muted);margin-top:6px">'+(a.explanation||'')+'</div></div>'
-            ).join('');
+            zc.innerHTML = d.zones.map(z => {
+                const pct = z.total > 0 ? Math.round((z.compliant / z.total) * 100) : 0;
+                const avgScorePct = Math.round((z.avg_score || 0) * 100);
+                const { color } = scoreToRiskLevel(z.avg_score);
+                return `<div class="col-12 col-md-6 col-xl-3">
+                    <div style="background:var(--bg-dark);border:1px solid var(--border);border-radius:4px;padding:16px">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                            <span class="zone-${z.zone}" style="font-size:13px">${z.zone}</span>
+                            <span style="font-family:Orbitron,monospace;font-size:18px;color:${color}">${pct}%</span>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.05);border-radius:2px;height:4px;margin-bottom:8px">
+                            <div style="width:${pct}%;height:100%;background:${color};border-radius:2px"></div>
+                        </div>
+                        <div style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--text-muted)">
+                            ${z.compliant}/${z.total} compliant &middot; avg risk: ${avgScorePct}%
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
         }
-    } catch(e) { console.error('Summary error:',e); }
+
+        // Top violations
+        const vb = document.getElementById('violations-body');
+        if (!d.top_non_compliant || !d.top_non_compliant.length) {
+            vb.innerHTML = '<div style="color:var(--accent-green);font-family:Share Tech Mono,monospace;font-size:12px;text-align:center;padding:20px">NO VIOLATIONS FOUND</div>';
+        } else {
+            vb.innerHTML = d.top_non_compliant.map(a => {
+                const { label, color, pct } = scoreToRiskLevel(a.compliance_score);
+                return `
+                <div style="border-left:3px solid var(--accent-red);padding:12px 16px;margin-bottom:12px;background:rgba(255,51,85,0.04)">
+                    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center">
+                        <div>
+                            <span style="font-weight:600;font-size:14px">${a.vendor} ${a.product}</span>
+                            <span class="zone-${a.zone}" style="margin-left:8px">${a.zone}</span>
+                            <span style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--accent-orange);margin-left:6px">${a.service}:${a.port}</span>
+                        </div>
+                        <div style="text-align:right">
+                            <div style="font-family:'Share Tech Mono',monospace;font-size:11px;font-weight:700;color:${color}">${label}</div>
+                            <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:${color}">${pct}% compliant</div>
+                        </div>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:6px">${a.explanation || ''}</div>
+                </div>`;
+            }).join('');
+        }
+    } catch(e) { console.error('Summary error:', e); }
 }
 
 async function loadAssets() {
-    document.getElementById('assets-loading').style.display='block';
-    document.getElementById('assets-table-wrap').style.display='none';
+    document.getElementById('assets-loading').style.display = 'block';
+    document.getElementById('assets-table-wrap').style.display = 'none';
     try {
         const r = await fetch('/api/policy/assets');
         const assets = await r.json();
-        document.getElementById('assets-loading').style.display='none';
-        document.getElementById('assets-table-wrap').style.display='block';
-        document.getElementById('asset-count').textContent = assets.length+' assets';
+        document.getElementById('assets-loading').style.display = 'none';
+        document.getElementById('assets-table-wrap').style.display = 'block';
+        document.getElementById('asset-count').textContent = assets.length + ' assets';
         const tbody = document.getElementById('assets-tbody');
-        if (!assets.length) { tbody.innerHTML='<tr><td colspan="9" class="text-center py-4" style="color:var(--text-muted);font-family:Share Tech Mono,monospace;font-size:12px">NO DATA</td></tr>'; return; }
+        if (!assets.length) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4" style="color:var(--text-muted);font-family:Share Tech Mono,monospace;font-size:12px">NO DATA</td></tr>';
+            return;
+        }
         tbody.innerHTML = assets.map(a => {
-            const status=a.compliance_status||'NOT CHECKED', score=a.compliance_score, conf=a.confidence;
-            const isComp=status==='COMPLIANT', notChecked=status==='NOT CHECKED';
-            const sc=isComp?'var(--accent-green)':notChecked?'var(--text-muted)':'var(--accent-red)';
-            const rc=score==null?'var(--text-muted)':score>=0.6?'var(--accent-green)':score>=0.3?'var(--accent-orange)':'var(--accent-red)';
-            const fi=(a.explanation||'').split('|')[0].trim();
-            return '<tr><td><div style="font-weight:600">'+a.vendor+' '+a.product+'</div><div style="font-size:11px;color:var(--text-muted)">'+a.ip+':'+a.port+'</div></td><td><span class="zone-'+a.zone+'">'+a.zone+'</span></td><td><span style="font-family:Share Tech Mono,monospace;font-size:11px;color:var(--accent-orange)">'+(a.service||'—')+'</span></td><td><span style="font-family:Share Tech Mono,monospace;font-size:11px;color:'+sc+'">'+(isComp?'✓':notChecked?'○':'✗')+' '+status+'</span></td><td><span style="font-family:Orbitron,monospace;font-size:15px;color:'+rc+'">'+(score!=null?score.toFixed(2):'—')+'</span></td><td style="font-family:Share Tech Mono,monospace;font-size:12px">'+(conf!=null?(conf*100).toFixed(0)+'%':'—')+'</td><td style="font-size:11px;color:var(--text-muted);max-width:220px;white-space:normal">'+(fi||'—')+'</td><td style="font-family:Share Tech Mono,monospace;font-size:10px;color:var(--text-muted)">'+(a.checked_at?a.checked_at.substring(0,16):'—')+'</td><td><button onclick="checkOne('+a.id+',this)" style="font-family:Share Tech Mono,monospace;font-size:10px;padding:4px 10px;background:transparent;border:1px solid var(--border);color:var(--accent-cyan);border-radius:2px;cursor:pointer">CHECK</button></td></tr>';
+            const status = a.compliance_status || 'NOT CHECKED';
+            const isComp = status === 'COMPLIANT';
+            const notChecked = status === 'NOT CHECKED';
+            const statusColor = isComp ? 'var(--accent-green)' : notChecked ? 'var(--text-muted)' : 'var(--accent-red)';
+            const statusIcon  = isComp ? '✓' : notChecked ? '○' : '✗';
+            const issues = (a.explanation || '').split('|')[0].trim();
+
+            return `<tr>
+                <td>
+                    <div style="font-weight:600">${a.vendor} ${a.product}</div>
+                    <div style="font-size:11px;color:var(--text-muted)">${a.ip}:${a.port}</div>
+                </td>
+                <td><span class="zone-${a.zone}">${a.zone}</span></td>
+                <td><span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-orange)">${a.service || '—'}</span></td>
+                <td><span style="font-family:'Share Tech Mono',monospace;font-size:12px;font-weight:700;color:${statusColor}">${statusIcon} ${status.replace('_', ' ')}</span></td>
+                <td>${riskLevelCell(a.compliance_score)}</td>
+                <td>${certaintyBadge(a.confidence)}</td>
+                <td style="font-size:11px;color:var(--text-muted);max-width:220px;white-space:normal">${issues || '—'}</td>
+                <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)">${a.checked_at ? a.checked_at.substring(0, 16) : '—'}</td>
+                <td>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                    <button onclick="checkOne(${a.id}, this)"
+                        style="font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 10px;
+                               background:transparent;border:1px solid var(--border);
+                               color:var(--accent-cyan);border-radius:2px;cursor:pointer">
+                        CHECK
+                    </button>
+                    ${!isComp && !notChecked ? `<a href="/remediation"
+                        style="font-family:'Share Tech Mono',monospace;font-size:10px;padding:4px 8px;
+                               background:rgba(255,51,85,0.08);border:1px solid rgba(255,51,85,0.3);
+                               color:var(--accent-red);border-radius:2px;text-decoration:none"
+                        title="Go to Remediation Advisor">FIX →</a>` : ''}
+                    </div>
+                </td>
+            </tr>`;
         }).join('');
-    } catch(e) { console.error('Assets error:',e); }
+    } catch(e) { console.error('Assets error:', e); }
 }
 
-async function checkOne(id,btn) {
-    const o=btn.textContent; btn.textContent='...'; btn.disabled=true;
-    try { const r=await fetch('/api/policy/check/'+id,{method:'POST'}); const d=await r.json(); if(d.error){alert('Error: '+d.error);}else{loadAll();} }
-    catch(e){alert('Error: '+e);} finally{btn.textContent=o;btn.disabled=false;}
+async function checkOne(id, btn) {
+    const o = btn.textContent; btn.textContent = '...'; btn.disabled = true;
+    try {
+        const r = await fetch('/api/policy/check/' + id, { method: 'POST' });
+        const d = await r.json();
+        if (d.error) {
+            alert('Error: ' + d.error);
+        } else {
+            // Update just this row instead of reloading everything
+            const result = d.prediction;
+            const row = btn.closest('tr');
+            if (row && result) {
+                const statusColor = result.compliance_status === 'COMPLIANT' ? 'var(--accent-green)' : 'var(--accent-red)';
+                const statusIcon  = result.compliance_status === 'COMPLIANT' ? '✓' : '✗';
+                row.cells[3].innerHTML = `<span style="font-family:'Share Tech Mono',monospace;font-size:12px;font-weight:700;color:${statusColor}">${statusIcon} ${result.compliance_status.replace('_',' ')}</span>`;
+                row.cells[4].innerHTML = riskLevelCell(result.compliance_score);
+                row.cells[5].innerHTML = certaintyBadge(result.confidence);
+                row.cells[7].innerHTML = `<span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)">${new Date().toISOString().substring(0,16).replace('T',' ')}</span>`;
+            }
+            // Also refresh summary stats
+            loadSummary();
+        }
+    } catch(e) { alert('Error: ' + e); }
+    finally { btn.textContent = o; btn.disabled = false; }
 }
 
 async function checkAll() {
-    const btn=document.getElementById('check-all-btn'),wrap=document.getElementById('check-progress-wrap'),bar=document.getElementById('check-progress-bar'),txt=document.getElementById('check-status');
-    btn.disabled=true; wrap.style.display='block'; bar.style.width='0%'; txt.textContent='Running...';
-    let pct=0; const t=setInterval(()=>{pct=Math.min(pct+4,88);bar.style.width=pct+'%';},400);
+    const btn = document.getElementById('check-all-btn');
+    const wrap = document.getElementById('check-progress-wrap');
+    const bar  = document.getElementById('check-progress-bar');
+    const txt  = document.getElementById('check-status');
+    btn.disabled = true; wrap.style.display = 'block'; bar.style.width = '0%'; txt.textContent = 'Running...';
+    let pct = 0;
+    const t = setInterval(() => { pct = Math.min(pct + 4, 88); bar.style.width = pct + '%'; }, 400);
     try {
-        const r=await fetch('/api/policy/check/all',{method:'POST'}); const d=await r.json();
-        clearInterval(t); bar.style.width='100%';
-        if(d.success){txt.textContent='Complete';setTimeout(()=>{loadAll();wrap.style.display='none';bar.style.width='0%';},800);}
-        else{txt.textContent='Error: '+(d.message||'unknown');}
-    } catch(e){clearInterval(t);txt.textContent='Error: '+e;} finally{btn.disabled=false;}
+        const r = await fetch('/api/policy/check/all', { method: 'POST' });
+        const d = await r.json();
+        clearInterval(t); bar.style.width = '100%';
+        if (d.success) {
+            txt.textContent = 'Complete';
+            setTimeout(() => { loadAll(); wrap.style.display = 'none'; bar.style.width = '0%'; }, 800);
+        } else {
+            txt.textContent = 'Error: ' + (d.message || 'unknown');
+        }
+    } catch(e) { clearInterval(t); txt.textContent = 'Error: ' + e; }
+    finally { btn.disabled = false; }
 }
 </script>
 {% endblock %}

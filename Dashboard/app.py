@@ -208,17 +208,17 @@ def api_summary():
         ]
 
         cur.execute("""
-            SELECT COUNT(*) FROM alerts al
+            SELECT COALESCE(SUM(al.alert_count), 0) FROM alerts al
             JOIN assets a ON a.id = al.asset_id WHERE a.status = 'ACTIVE';
         """)
-        total_alerts = cur.fetchone()[0]
+        total_alerts = int(cur.fetchone()[0])
 
         cur.execute("""
-            SELECT COUNT(*) FROM alerts al
+            SELECT COALESCE(SUM(al.alert_count), 0) FROM alerts al
             JOIN assets a ON a.id = al.asset_id
             WHERE a.status = 'ACTIVE' AND al.is_active_attack = TRUE;
         """)
-        active_attacks = cur.fetchone()[0]
+        active_attacks = int(cur.fetchone()[0])
 
         cur.execute("""
             SELECT COUNT(*) FROM assets a
@@ -516,12 +516,7 @@ def _find_docker_desktop_exe():
 
 def _ensure_docker_desktop_and_start():
     """
-    Background-thread target for /api/scan/start. `docker compose up` fails
-    outright (no retry) if the daemon isn't reachable yet, so a plain Popen
-    call at click-time silently no-ops whenever Docker Desktop isn't already
-    running — the user has to notice, open it themselves, and click again.
-    This launches Docker Desktop if needed and waits for the daemon to
-    actually answer before running compose, so one click is enough either way.
+    Background-thread target for /api/scan/start.
     """
     if not _docker_daemon_ready():
         exe = _find_docker_desktop_exe()
@@ -530,20 +525,24 @@ def _ensure_docker_desktop_and_start():
                 subprocess.Popen([exe], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except Exception:
                 pass
-        # Docker Desktop cold start is commonly 30-90s (see docker/README.md
-        # troubleshooting section) — poll rather than fixed-sleep.
         deadline = time.time() + 150
         while time.time() < deadline:
             if _docker_daemon_ready():
                 break
             time.sleep(3)
         else:
-            return  # daemon never came up — nothing more to do here
-    subprocess.Popen(
+            print("[scan] Docker daemon never came up — aborting")
+            return
+
+    result = subprocess.run(
         ["docker", "compose", "up", "-d", "--build"],
         cwd=DOCKER_DIR,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        capture_output=True, text=True
     )
+    if result.returncode != 0:
+        print(f"[scan] docker compose up failed:\n{result.stderr[:500]}")
+    else:
+        print("[scan] docker compose up succeeded")
 
 
 @app.route('/api/scan/status')
@@ -581,6 +580,39 @@ def api_scan_stop():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+
+# ─────────────────────────────────────────────────────────────
+# API — PIPELINE (DB sync trigger)
+# ─────────────────────────────────────────────────────────────
+
+@app.route('/api/pipeline/run', methods=['POST'])
+def api_pipeline_run():
+    """Trigger sync_db.py and return its output line by line."""
+    try:
+        sync_script = os.path.join(BASE_DIR, "Database", "sync_db.py")
+        if not os.path.exists(sync_script):
+            return jsonify({"success": False, "output": ["ERROR: sync_db.py not found"]}), 500
+
+        result = subprocess.run(
+            [sys.executable, sync_script],
+            capture_output=True, text=True, timeout=120,
+            cwd=BASE_DIR
+        )
+
+        lines = []
+        if result.stdout:
+            lines += result.stdout.splitlines()
+        if result.stderr:
+            lines += [f"[stderr] {l}" for l in result.stderr.splitlines() if l.strip()]
+
+        success = result.returncode == 0
+        return jsonify({"success": success, "output": lines, "returncode": result.returncode})
+
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "output": ["ERROR: sync timed out after 120s"]}), 500
+    except Exception as e:
+        return jsonify({"success": False, "output": [f"ERROR: {str(e)}"]}), 500
+
 # ─────────────────────────────────────────────────────────────
 # POLICY COMPLIANCE API REGISTRATION
 # ─────────────────────────────────────────────────────────────
@@ -607,23 +639,56 @@ except ImportError as e:
 except Exception as e:
     print(f"⚠ Failed to register remediation advisor API: {e}")
 
+def _start_automated_background_services():
+    """
+    Background services started on Dashboard launch:
+    1. Runs initial sync_db.py to ingest existing JSON files into PostgreSQL immediately.
+    2. Launches file_watcher.py in background so any new/modified JSON files are auto-synced to DB.
+
+    NOTE: Docker is NOT started automatically. Use the "Start Passive Scan" button
+    on the dashboard to start the Docker container stack manually.
+    """
+    # 1. Initial DB sync
+    try:
+        sync_script = os.path.join(BASE_DIR, "Database", "sync_db.py")
+        print("  [Auto-Start] Running initial Database sync...")
+        subprocess.run([sys.executable, sync_script], capture_output=True, text=True)
+        print("✓ [Auto-Start] Initial Database sync complete")
+    except Exception as e:
+        print(f"⚠ [Auto-Start] Initial DB sync warning: {e}")
+
+    # 1b. Ensure remediation tables exist (idempotent — safe to run every time)
+    try:
+        remediation_setup = os.path.join(BASE_DIR, "Database", "db_remediation_setup.py")
+        if os.path.exists(remediation_setup):
+            subprocess.run([sys.executable, remediation_setup], capture_output=True, text=True)
+            print("✓ [Auto-Start] Remediation tables verified")
+    except Exception as e:
+        print(f"⚠ [Auto-Start] Remediation table setup warning: {e}")
+
+    # 2. Launch file_watcher.py in background if not already running
+    try:
+        file_watcher_script = os.path.join(BASE_DIR, "file_watcher.py")
+        if os.path.exists(file_watcher_script):
+            subprocess.Popen(
+                [sys.executable, file_watcher_script],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            print("✓ [Auto-Start] File Watcher background process active")
+    except Exception as e:
+        print(f"⚠ [Auto-Start] Could not launch File Watcher: {e}")
+
+    print("  [Auto-Start] Docker not started — press 'Start Passive Scan' on the dashboard to begin scanning.")
+
+
 if __name__ == '__main__':
     print("=" * 55)
     print("  CAVE-OT Dashboard")
     print("  http://localhost:5000")
     print("=" * 55)
 
-    # On startup, mark all assets INACTIVE and clear runtime alerts so the
-    # dashboard reflects reality when the VM pipeline is not running.
-    try:
-        conn = get_conn()
-        cur = conn.cursor()
-        cur.execute("TRUNCATE alerts RESTART IDENTITY;")
-        cur.execute("UPDATE assets SET status = 'INACTIVE';")
-        conn.commit()
-        conn.close()
-        print("  Assets reset to INACTIVE, alerts cleared (will update when VM syncs)")
-    except Exception as e:
-        print(f"  Could not reset on startup: {e}")
+    # Avoid duplicate background thread spawning when Werkzeug reloader is active
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+        _start_automated_background_services()
 
     app.run(debug=True, host='0.0.0.0', port=5000)

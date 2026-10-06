@@ -21,7 +21,25 @@ import psycopg2
 import psycopg2.extras
 import policy_gatekeeper
 import remediation_advisor
-from policy_predictor import PolicyCompliancePredictor
+
+# Lazy-load the predictor — same pattern as policy_api.py so a missing model
+# doesn't prevent remediation routes from registering at all.
+_predictor_instance = None
+_predictor_error = None
+
+def _get_predictor():
+    global _predictor_instance, _predictor_error
+    if _predictor_instance is not None:
+        return _predictor_instance, None
+    if _predictor_error is not None:
+        return None, _predictor_error
+    try:
+        from policy_predictor import PolicyCompliancePredictor
+        _predictor_instance = PolicyCompliancePredictor()
+        return _predictor_instance, None
+    except Exception as e:
+        _predictor_error = str(e)
+        return None, _predictor_error
 
 remediation_bp = Blueprint('remediation', __name__, url_prefix='/api/remediation')
 
@@ -111,7 +129,7 @@ def _generate_one(cur, conn, asset_id, cve_id, force=False):
     attack_path_info = _attack_path_info(cur, asset_row["device_type"])
     policy_context, ml_signal = _policy_context(cur, asset_id)
 
-    result, context_chunks = remediation_advisor.generate_remediation(
+    result, context_chunks, model_used = remediation_advisor.generate_remediation(
         asset, cve, attack_path_info, policy_context
     )
 
@@ -154,7 +172,7 @@ def _generate_one(cur, conn, asset_id, cve_id, force=False):
         "risk_score": vuln_row["risk_score"], "risk_tier": vuln_row["risk_tier"],
         "recommendation": result.recommendation, "rationale": result.rationale,
         "ot_safety_note": result.ot_safety_note, "requires_window": result.requires_maintenance_window,
-        "confidence": result.confidence, "model": remediation_advisor.GEMINI_MODEL,
+        "confidence": result.confidence, "model": model_used,
         "context": json.dumps(context_chunks),
         "verdict": verdict["verdict"], "reasons": json.dumps(verdict["reasons"]),
         "matched_rules": json.dumps(verdict["matched_rules"]), "ml_signal": json.dumps(ml_signal),
@@ -174,7 +192,7 @@ def _generate_one(cur, conn, asset_id, cve_id, force=False):
     return dict(cur.fetchone()), False
 
 
-@remediation_bp.route('', methods=['GET'])
+@remediation_bp.route('/', methods=['GET'])
 def list_recommendations():
     try:
         status = request.args.get('status')
@@ -211,6 +229,8 @@ def list_recommendations():
         conn.close()
         return jsonify(rows)
     except Exception as e:
+        import traceback
+        print(f"[remediation /api/remediation ERROR] {e}\n{traceback.format_exc()}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -309,12 +329,20 @@ def _run_bulk_generation():
             try:
                 _generate_one(cur, conn, c["asset_id"], c["cve_id"], force=False)
             except Exception as e:
+                err_msg = str(e)
                 with _gen_lock:
-                    _gen_state["errors"].append(f"{c['device_type']}: {e}")
+                    _gen_state["errors"].append(f"{c['device_type']}: {err_msg}")
+                # Rate limit — stop bulk generation, don't burn remaining quota
+                if "429" in err_msg or "rate" in err_msg.lower() or "quota" in err_msg.lower():
+                    print(f"  [bulk gen] Rate limited on {c['device_type']} — stopping bulk. Try again later.")
+                    break
             with _gen_lock:
                 _gen_state["completed"] += 1
 
         conn.close()
+    except Exception as e:
+        with _gen_lock:
+            _gen_state["errors"].append(f"Fatal: {e}")
     finally:
         with _gen_lock:
             _gen_state["running"] = False

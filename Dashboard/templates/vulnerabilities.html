@@ -71,6 +71,7 @@
                     <th>Tier</th>
                     <th>CIA</th>
                     <th>Discovered</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody id="vuln-tbody"></tbody>
@@ -87,9 +88,26 @@ let sortKey = 'risk_score';
 let sortAsc = false;
 let currentTier = '';
 
-document.addEventListener('DOMContentLoaded', () => {
-    loadSummaryStats();
-    loadVulns('');
+// Only fetch data when scan is running
+let vulnLoaded = false;
+CaveOT.onScanState((running) => {
+    if (running) {
+        if (!vulnLoaded) {
+            vulnLoaded = true;
+            loadSummaryStats();
+            loadVulns('');
+        }
+    } else {
+        vulnLoaded = false;
+        // Clear data so nothing shows under the overlay
+        allVulns = [];
+        ['vs-critical','vs-high','vs-medium','vs-low'].forEach(id => {
+            document.getElementById(id).textContent = '—';
+        });
+        document.getElementById('vuln-loading').style.display = 'none';
+        document.getElementById('vuln-table-wrap').style.display = 'none';
+        document.getElementById('vuln-count').textContent = '';
+    }
 });
 
 async function loadSummaryStats() {
@@ -187,6 +205,15 @@ function renderVulns(data) {
             </td>
             <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);white-space:nowrap">
                 ${v.discovered_at ? v.discovered_at.substring(0,10) : '—'}
+            </td>
+            <td>
+                ${(v.risk_tier === 'CRITICAL' || v.risk_tier === 'HIGH') ? `
+                <a href="/remediation" style="font-family:'Share Tech Mono',monospace;font-size:10px;
+                   padding:3px 8px;background:rgba(255,51,85,0.08);border:1px solid rgba(255,51,85,0.35);
+                   color:var(--accent-red);border-radius:2px;text-decoration:none;white-space:nowrap"
+                   title="Go to Remediation Advisor to generate a fix for this CVE">
+                   REMEDIATE →
+                </a>` : ''}
             </td>
         </tr>
     `).join('');

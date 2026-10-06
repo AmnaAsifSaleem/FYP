@@ -80,8 +80,25 @@
 <script>
 let allAssets = [];
 let currentFilter = 'ALL';
+let assetsLoaded = false;
 
-document.addEventListener('DOMContentLoaded', loadAssets);
+// Only fetch data when the scan is running; show nothing when offline
+CaveOT.onScanState((running) => {
+    if (running) {
+        if (!assetsLoaded) {
+            assetsLoaded = true;
+            loadAssets();
+        }
+    } else {
+        // Scan stopped — clear the rendered data so nothing shows under the overlay
+        allAssets = [];
+        assetsLoaded = false;
+        document.getElementById('assets-loading').style.display = 'none';
+        const grid = document.getElementById('assets-grid');
+        grid.innerHTML = '';
+        grid.style.display = 'none';
+    }
+});
 
 async function loadAssets() {
     const r = await fetch('/api/assets');

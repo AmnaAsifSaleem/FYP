@@ -12,6 +12,10 @@ Run:
 
 import json, os, sys, argparse, random
 
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from db_manager import get_connection, update_asset_statuses
 
@@ -419,7 +423,7 @@ def _run_policy_check(db_config):
         predictor = PolicyCompliancePredictor()
         conn = _pg.connect(**db_config)
         cur = conn.cursor()
-        cur.execute('SELECT id, device_type, vendor, zone, service, port, criticality FROM assets')
+        cur.execute('SELECT id, device_type, vendor, zone, service, port, criticality FROM assets ORDER BY id')
         checked = 0
         for aid, dt, vendor, zone, svc, port, crit in cur.fetchall():
             cur.execute('SELECT AVG(cvss),AVG(epss),AVG(c_impact),AVG(i_impact),AVG(a_impact),COUNT(*) FROM vulnerabilities WHERE asset_id=%s',(aid,))

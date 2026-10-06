@@ -3,7 +3,7 @@
 {% block page_heading %}Remediation Advisor{% endblock %}
 
 {% block content %}
-<div class="section-heading">LLM Remediation Advisor — RAG-grounded, gatekeeper-reviewed, human-approved. Nothing here is ever auto-applied.</div>
+<div class="section-heading">AI-Powered Remediation Advisor — Groq LLM, gatekeeper-reviewed, human-approved. Nothing here is ever auto-applied.</div>
 
 <div class="row g-3 mb-4">
     <div class="col-6 col-xl-3">
@@ -99,8 +99,31 @@
 <script>
 let rmRecs = [];
 let rmPollTimer = null;
+let rmLoaded = false;
 
-document.addEventListener('DOMContentLoaded', loadAll);
+// Only fetch data when scan is running
+CaveOT.onScanState((running) => {
+    if (running) {
+        if (!rmLoaded) {
+            rmLoaded = true;
+            loadAll();
+            checkGenerationStatus();
+        }
+    } else {
+        rmLoaded = false;
+        // Clear data so nothing shows under the overlay
+        ['rm-total','rm-pending','rm-approved','rm-blocked'].forEach(id => {
+            document.getElementById(id).textContent = '—';
+        });
+        document.getElementById('rm-blocked-sub').textContent = '— blocked by gatekeeper';
+        document.getElementById('rm-rejected-sub').textContent = '— rejected';
+        document.getElementById('rm-rec-loading').style.display = 'none';
+        document.getElementById('rm-rec-wrap').style.display = 'none';
+        document.getElementById('rm-candidates-loading').style.display = 'none';
+        document.getElementById('rm-candidates-wrap').style.display = 'none';
+        if (rmPollTimer) { clearInterval(rmPollTimer); rmPollTimer = null; }
+    }
+});
 function loadAll() { loadRecommendations(); loadCandidates(); }
 
 function verdictBadge(v) {
@@ -142,8 +165,20 @@ async function loadRecommendations() {
     document.getElementById('rm-rec-wrap').style.display = 'none';
     const showBlocked = document.getElementById('rm-show-blocked').checked;
     try {
-        const r = await fetch('/api/remediation' + (showBlocked ? '?show_blocked=1' : ''));
-        rmRecs = await r.json();
+        const r = await fetch('/api/remediation/' + (showBlocked ? '?show_blocked=1' : ''));
+        const data = await r.json();
+
+        // API returned an error object instead of an array
+        if (!Array.isArray(data)) {
+            document.getElementById('rm-rec-loading').style.display = 'none';
+            document.getElementById('rm-rec-wrap').style.display = 'block';
+            document.getElementById('rm-rec-tbody').innerHTML =
+                `<tr><td colspan="7" class="text-center py-4" style="color:var(--accent-red);font-family:'Share Tech Mono',monospace;font-size:12px">
+                    ERROR: ${data.error || 'Unknown server error'}</td></tr>`;
+            return;
+        }
+
+        rmRecs = data;
         document.getElementById('rm-rec-loading').style.display = 'none';
         document.getElementById('rm-rec-wrap').style.display = 'block';
         document.getElementById('rm-rec-count').textContent = rmRecs.length + ' recommendations';
@@ -168,6 +203,11 @@ async function loadRecommendations() {
         tbody.innerHTML = rmRecs.map(rec => renderRow(rec)).join('');
     } catch (e) {
         console.error('Recommendations error:', e);
+        document.getElementById('rm-rec-loading').style.display = 'none';
+        document.getElementById('rm-rec-wrap').style.display = 'block';
+        document.getElementById('rm-rec-tbody').innerHTML =
+            `<tr><td colspan="7" class="text-center py-4" style="color:var(--accent-red);font-family:'Share Tech Mono',monospace;font-size:12px">
+                NETWORK ERROR — ${e.message}</td></tr>`;
     }
 }
 
@@ -224,8 +264,8 @@ function renderDetail(rec) {
             <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">${rec.rationale || '—'}</div>
             <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-orange);letter-spacing:1px;margin-bottom:4px">OT SAFETY NOTE</div>
             <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">${rec.ot_safety_note || '—'}</div>
-            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:1px;margin-bottom:4px">RETRIEVED GUIDANCE (RAG CONTEXT)</div>
-            ${ctx.map(c => `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">[${(c.similarity*100).toFixed(0)}%] <b>${c.topic}</b> — ${c.text}</div>`).join('') || '<div style="font-size:11px;color:var(--text-muted)">none</div>'}
+            <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:1px;margin-bottom:4px">REFERENCES</div>
+            ${ctx.length ? ctx.map(c => `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">• ${c.topic ? c.topic : c}</div>`).join('') : '<div style="font-size:11px;color:var(--text-muted)">none</div>'}
         </div>
         <div class="col-12 col-lg-6">
             <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-red);letter-spacing:1px;margin-bottom:4px">GATEKEEPER VERDICT: ${rec.gatekeeper_verdict}</div>
@@ -310,22 +350,47 @@ async function generateAll() {
     btn.disabled = true; wrap.style.display = 'block'; bar.style.width = '0%'; status.textContent = 'Starting...';
 
     await fetch('/api/remediation/generate/all', { method: 'POST' });
+    startPollTimer();
+}
 
+function startPollTimer() {
+    if (rmPollTimer) clearInterval(rmPollTimer);
     rmPollTimer = setInterval(async () => {
         const r = await fetch('/api/remediation/generate/status');
         const d = await r.json();
+        const wrap = document.getElementById('rm-progress-wrap');
+        const bar  = document.getElementById('rm-progress-bar');
+        const status = document.getElementById('rm-progress-status');
+        const btn  = document.getElementById('rm-generate-all-btn');
         const pct = d.total > 0 ? Math.round((d.completed / d.total) * 100) : 0;
-        bar.style.width = pct + '%';
-        status.textContent = d.running
+        if (bar) bar.style.width = pct + '%';
+        if (status) status.textContent = d.running
             ? `Generating ${d.completed}/${d.total}${d.current_asset ? ' — ' + d.current_asset : ''}...`
             : `Complete — ${d.completed}/${d.total} generated` + (d.errors.length ? `, ${d.errors.length} errors` : '');
         if (!d.running) {
             clearInterval(rmPollTimer);
-            btn.disabled = false;
-            setTimeout(() => { wrap.style.display = 'none'; bar.style.width = '0%'; }, 1500);
+            rmPollTimer = null;
+            if (btn) btn.disabled = false;
+            setTimeout(() => {
+                if (wrap) { wrap.style.display = 'none'; }
+                if (bar)  { bar.style.width = '0%'; }
+            }, 1500);
             loadAll();
         }
     }, 2000);
+}
+
+// On page load check if a generation is already running and resume polling
+async function checkGenerationStatus() {
+    try {
+        const r = await fetch('/api/remediation/generate/status');
+        const d = await r.json();
+        if (d.running) {
+            document.getElementById('rm-progress-wrap').style.display = 'block';
+            document.getElementById('rm-generate-all-btn').disabled = true;
+            startPollTimer();
+        }
+    } catch(e) { /* ignore */ }
 }
 </script>
 {% endblock %}

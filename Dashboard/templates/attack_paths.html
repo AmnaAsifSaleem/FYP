@@ -142,9 +142,34 @@
 </div>
 
 <script>
-// ── Fetch attack path data and populate stat cards ────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-    loadAttackPaths();
+// ── Attack paths — only clear on state CHANGE, not on initial false ────────────
+let apLoaded = false;
+
+CaveOT.onScanState((running, changed) => {
+    if (running) {
+        // Only load once — re-polling scan status shouldn't re-render the graph
+        if (!apLoaded) {
+            loadAttackPaths();
+            apLoaded = true;
+        }
+    } else if (changed) {
+        // Only wipe when scan actively STOPPED (not on first page load check)
+        apLoaded = false;
+        ['ap-total','ap-entry','ap-target'].forEach(id => {
+            document.getElementById(id).textContent = '—';
+        });
+        document.getElementById('ap-total-sub').textContent = 'computed entry→target routes';
+        document.getElementById('ap-entry-sub').textContent = 'lowest cost path origin';
+        document.getElementById('ap-target-sub').textContent = 'most reached OT asset';
+        document.getElementById('ap-graph-status').textContent = 'OFFLINE';
+        const gc = document.getElementById('graph-container');
+        if (gc) gc.innerHTML = '<span style="font-family:\'Share Tech Mono\',monospace;font-size:12px;color:var(--text-muted)">NO DATA — START PASSIVE SCAN</span>';
+        const ptl = document.getElementById('path-table-loading');
+        if (ptl) ptl.style.display = 'none';
+        const ptc = document.getElementById('path-table-container');
+        if (ptc) ptc.innerHTML = '<div class="empty-state"><i class="bi bi-diagram-3"></i><p>SYSTEM OFFLINE</p></div>';
+    }
+    // if !running && !changed → initial check came back offline, overlay handles it
 });
 
 async function loadAttackPaths() {
@@ -592,7 +617,9 @@ function renderGraph(paths, nodeAnnotations) {
 // ── Ranked path table ─────────────────────────────────────────────────────────
 function renderPathTable(paths) {
     const container = document.getElementById('path-table-container');
-    document.getElementById('path-table-loading').style.display = 'none';
+    const loadingEl = document.getElementById('path-table-loading');
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (!container) return;
 
     if (!paths.length) {
         container.innerHTML = `
@@ -603,8 +630,8 @@ function renderPathTable(paths) {
         return;
     }
 
-    document.getElementById('ap-table-count').textContent =
-        `${paths.length} path${paths.length > 1 ? 's' : ''}`;
+    const countEl = document.getElementById('ap-table-count');
+    if (countEl) countEl.textContent = `${paths.length} path${paths.length > 1 ? 's' : ''}`;
 
     const rows = paths.map((p, i) => {
         const isDanger = i === 0;   // lowest cost = highest risk
@@ -692,13 +719,22 @@ function formatPath(pathJson) {
 }
 
 function setError(msg) {
-    document.getElementById('ap-total').textContent  = 'ERR';
-    document.getElementById('ap-entry').textContent  = '—';
-    document.getElementById('ap-target').textContent = '—';
-    document.getElementById('ap-graph-status').textContent = 'API ERROR';
-    document.getElementById('graph-placeholder').textContent = 'Error: ' + msg;
-    document.getElementById('path-table-loading').style.display = 'none';
-    document.getElementById('path-table-container').innerHTML = `
+    const totalEl = document.getElementById('ap-total');
+    if (totalEl) totalEl.textContent = 'ERR';
+    const entryEl = document.getElementById('ap-entry');
+    if (entryEl) entryEl.textContent = '—';
+    const targetEl = document.getElementById('ap-target');
+    if (targetEl) targetEl.textContent = '—';
+    const statusEl = document.getElementById('ap-graph-status');
+    if (statusEl) statusEl.textContent = 'API ERROR';
+    const container = document.getElementById('graph-container');
+    if (container) {
+        container.innerHTML = `<div style="padding:20px;color:var(--accent-red);font-family:'Share Tech Mono',monospace;font-size:12px">Error: ${msg}</div>`;
+    }
+    const tableLoading = document.getElementById('path-table-loading');
+    if (tableLoading) tableLoading.style.display = 'none';
+    const tableContainer = document.getElementById('path-table-container');
+    if (tableContainer) tableContainer.innerHTML = `
         <div class="empty-state">
             <i class="bi bi-exclamation-triangle" style="color:var(--accent-red)"></i>
             <p style="color:var(--accent-red)">Failed to load attack paths: ${msg}</p>

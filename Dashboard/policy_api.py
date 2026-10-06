@@ -12,7 +12,26 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'Policy_Compliance
 
 from flask import Blueprint, jsonify, request
 import psycopg2
-from policy_predictor import PolicyCompliancePredictor
+
+# Lazy-load the predictor so a missing/corrupt model file doesn't prevent
+# the entire blueprint from registering — individual endpoints return a
+# clear 503 instead of every /api/policy/* route being a silent 404.
+_predictor_instance = None
+_predictor_error = None
+
+def _get_predictor():
+    global _predictor_instance, _predictor_error
+    if _predictor_instance is not None:
+        return _predictor_instance, None
+    if _predictor_error is not None:
+        return None, _predictor_error
+    try:
+        from policy_predictor import PolicyCompliancePredictor
+        _predictor_instance = PolicyCompliancePredictor()
+        return _predictor_instance, None
+    except Exception as e:
+        _predictor_error = str(e)
+        return None, _predictor_error
 
 # Create Blueprint for policy API
 policy_bp = Blueprint('policy', __name__, url_prefix='/api/policy')
@@ -168,7 +187,9 @@ def check_asset_compliance(asset_id):
             return jsonify({"error": "Asset not found"}), 404
         
         # Initialize predictor
-        predictor = PolicyCompliancePredictor()
+        predictor, err = _get_predictor()
+        if predictor is None:
+            return jsonify({"error": f"Policy model unavailable: {err}"}), 503
         
         # Prepare asset for prediction
         asset_features = {
@@ -260,26 +281,41 @@ def check_asset_compliance(asset_id):
 @policy_bp.route('/check/all', methods=['POST'])
 def check_all_compliance():
     """Check policy compliance for all assets and save to DB."""
+    import pandas as pd
+    conn = None
     try:
-        import pandas as pd
         conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT * FROM assets ORDER BY id")
-        assets = [dict(a) for a in cur.fetchall()]
 
-        predictor = PolicyCompliancePredictor()
-        checked = 0
+        # ── Phase 1: READ everything needed, no writes yet ──────────────────
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as read_cur:
+            read_cur.execute("SELECT * FROM assets ORDER BY id")
+            assets = [dict(a) for a in read_cur.fetchall()]
+
+            # Fetch CVE aggregates for all assets in one shot
+            read_cur.execute("""
+                SELECT
+                    asset_id,
+                    AVG(cvss)                                  AS avg_cvss,
+                    AVG(epss)                                  AS avg_epss,
+                    MAX(CASE WHEN kev THEN 1 ELSE 0 END)       AS has_kev,
+                    AVG(c_impact)                              AS avg_c,
+                    AVG(i_impact)                              AS avg_i,
+                    AVG(a_impact)                              AS avg_a,
+                    COUNT(*)                                   AS cnt
+                FROM vulnerabilities
+                GROUP BY asset_id
+            """)
+            cve_map = {row['asset_id']: dict(row) for row in read_cur.fetchall()}
+
+        # ── Phase 2: Run ML predictions (pure CPU, no DB) ───────────────────
+        predictor, err = _get_predictor()
+        if predictor is None:
+            return jsonify({'success': False, 'message': f'Policy model unavailable: {err}'}), 503
+        rows_to_write = []
 
         for asset in assets:
-            # enrich with avg CVE data
-            cur.execute("""
-                SELECT AVG(cvss) avg_cvss, AVG(epss) avg_epss,
-                       MAX(CASE WHEN kev THEN 1 ELSE 0 END) has_kev,
-                       AVG(c_impact) avg_c, AVG(i_impact) avg_i,
-                       AVG(a_impact) avg_a, COUNT(*) cnt
-                FROM vulnerabilities WHERE asset_id = %s
-            """, (asset['id'],))
-            cv = cur.fetchone()
+            cv = cve_map.get(asset['id'])
+            has_cves = cv and cv['cnt']
 
             features = {
                 'device_type':      asset.get('device_type', 'Unknown'),
@@ -288,12 +324,12 @@ def check_all_compliance():
                 'service':          asset.get('service', 'Unknown'),
                 'port':             asset.get('port', 0),
                 'encrypted':        1 if asset.get('service') in ('HTTPS', 'SSH') else 0,
-                'cvss':             float(cv['avg_cvss'] or 0) if cv and cv['cnt'] else 0.0,
-                'epss':             float(cv['avg_epss'] or 0) if cv and cv['cnt'] else 0.0,
-                'kev':              int(cv['has_kev'] or 0)    if cv and cv['cnt'] else 0,
-                'c_impact':         float(cv['avg_c'] or 0)    if cv and cv['cnt'] else 0.0,
-                'i_impact':         float(cv['avg_i'] or 0)    if cv and cv['cnt'] else 0.0,
-                'a_impact':         float(cv['avg_a'] or 0)    if cv and cv['cnt'] else 0.0,
+                'cvss':             float(cv['avg_cvss'] or 0) if has_cves else 0.0,
+                'epss':             float(cv['avg_epss'] or 0) if has_cves else 0.0,
+                'kev':              int(cv['has_kev'] or 0)    if has_cves else 0,
+                'c_impact':         float(cv['avg_c'] or 0)    if has_cves else 0.0,
+                'i_impact':         float(cv['avg_i'] or 0)    if has_cves else 0.0,
+                'a_impact':         float(cv['avg_a'] or 0)    if has_cves else 0.0,
                 'criticality':      asset.get('criticality', 0.5),
                 'days_since_patch': 30,
                 'firmware_eol':     0,
@@ -301,10 +337,21 @@ def check_all_compliance():
             }
 
             result = predictor.predict(pd.DataFrame([features]))[0]
+            rows_to_write.append((
+                asset['id'],
+                result['compliance_status'],
+                float(result['compliance_score']),
+                float(result['confidence']),
+                result['explanation'],
+                json.dumps({'explanation': result['explanation']}),
+            ))
 
-            cur.execute("""
+        # ── Phase 3: WRITE all results in a single transaction ───────────────
+        with conn.cursor() as write_cur:
+            write_cur.executemany("""
                 INSERT INTO policy_compliance
-                    (asset_id, compliance_status, compliance_score, confidence, explanation, key_factors)
+                    (asset_id, compliance_status, compliance_score,
+                     confidence, explanation, key_factors)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (asset_id) DO UPDATE SET
                     compliance_status = EXCLUDED.compliance_status,
@@ -313,22 +360,18 @@ def check_all_compliance():
                     explanation       = EXCLUDED.explanation,
                     key_factors       = EXCLUDED.key_factors,
                     checked_at        = NOW()
-            """, (
-                asset['id'],
-                result['compliance_status'],
-                float(result['compliance_score']),
-                float(result['confidence']),
-                result['explanation'],
-                json.dumps({'explanation': result['explanation']}),
-            ))
-            checked += 1
+            """, rows_to_write)
 
         conn.commit()
-        conn.close()
-        return jsonify({'success': True, 'message': f'Checked {checked} assets'})
+        return jsonify({'success': True, 'message': f'Checked {len(rows_to_write)} assets'})
 
     except Exception as e:
+        if conn:
+            conn.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
 
 @policy_bp.route('/rules', methods=['GET'])
 def get_policy_rules():

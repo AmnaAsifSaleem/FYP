@@ -1,4 +1,4 @@
-# ================================================
+`# ================================================
 # CAVE-OT: WASA Rawalpindi Water Treatment Plant
 # Suricata IDS Rules
 # ================================================
@@ -7,7 +7,7 @@
 alert tcp any any -> any 502 (msg:"WASA Modbus Dosing Pump Connection Detected"; flow:to_server,established; sid:9000001; rev:1;)
 alert tcp any any -> any 502 (msg:"WASA Modbus Dosing Pump Write Attempt"; flow:to_server,established; content:"|00 00 00 00 00 06|"; depth:6; sid:9000002; rev:1;)
 alert tcp any any -> any 502 (msg:"WASA Modbus Dosing Pump High Frequency Polling"; flow:to_server,established; threshold:type both,track by_src,count 10,seconds 5; sid:9000003; rev:1;)
-alert tcp any any -> any 502 (msg:"WASA Modb us DosingPump Rapid Connection Attack"; flow:to_server; threshold:type both,track by_src,count 15,seconds 3; sid:9000004; rev:1;)
+alert tcp any any -> any 502 (msg:"WASA Modbus DosingPump Rapid Connection Attack"; flow:to_server; threshold:type both,track by_src,count 15,seconds 3; sid:9000004; rev:1;)
 
 # ── Siemens S7 Filtration PLC (Port 10201) ───────
 alert tcp any any -> any 10201 (msg:"WASA S7 Filtration PLC Connection Detected"; flow:to_server,established; sid:9000005; rev:1;)

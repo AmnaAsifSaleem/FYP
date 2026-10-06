@@ -27,11 +27,13 @@ class PolicyCompliancePredictor:
             self.model = joblib.load(os.path.join(model_dir, 'policy_compliance_model.pkl'))
             self.label_encoders = joblib.load(os.path.join(model_dir, 'label_encoders.pkl'))
             self.scaler = joblib.load(os.path.join(model_dir, 'scaler.pkl'))
+            self._model_loaded = True
             print(f"✓ Policy compliance model loaded from {model_dir}")
         except Exception as e:
-            print(f"✗ Error loading model: {e}")
-            print("Please run policy_model_trainer.py first to train the model.")
-            sys.exit(1)
+            self._model_loaded = False
+            self._load_error = str(e)
+            print(f"✗ Error loading policy model: {e}")
+            print("  Policy compliance predictions will be unavailable until the model is trained.")
     
     def prepare_asset(self, asset_data):
         """
@@ -122,6 +124,11 @@ class PolicyCompliancePredictor:
         asset_data: DataFrame or dict with asset features
         Returns: list of prediction results
         """
+        if not getattr(self, '_model_loaded', False):
+            raise RuntimeError(
+                f"Policy compliance model not loaded: {getattr(self, '_load_error', 'unknown error')}. "
+                "Run Policy_Compliance/policy_model_trainer.py to train the model."
+            )
         # Convert to DataFrame if dict
         if isinstance(asset_data, dict):
             asset_data = pd.DataFrame([asset_data])

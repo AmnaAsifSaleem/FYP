@@ -35,7 +35,7 @@
 <div class="panel">
     <div class="panel-header">
         <span class="panel-title">Alert Feed</span>
-        <button class="btn-ot" onclick="loadAlerts()" style="font-size:11px;padding:5px 14px">
+        <button class="btn-ot" onclick="refreshAlerts()" style="font-size:11px;padding:5px 14px">
             <i class="bi bi-arrow-clockwise"></i> REFRESH
         </button>
     </div>
@@ -117,17 +117,43 @@
 
 {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-    loadAlerts();
-    loadAlertStats();
+// Only fetch data when scan is running
+let alertsLoaded = false;
+CaveOT.onScanState((running) => {
+    if (running) {
+        if (!alertsLoaded) {
+            alertsLoaded = true;
+            loadAlerts();
+            loadAlertStats();
+        }
+    } else {
+        alertsLoaded = false;
+        ['as-total','as-attacks','as-assets'].forEach(id => {
+            document.getElementById(id).textContent = '—';
+        });
+        document.getElementById('alerts-loading').style.display = 'none';
+        document.getElementById('alerts-content').style.display = 'none';
+    }
 });
 
 async function loadAlertStats() {
-    const r = await fetch('/api/summary');
-    const d = await r.json();
-    document.getElementById('as-total').textContent = d.total_alerts;
-    document.getElementById('as-attacks').textContent = d.active_attacks;
-    document.getElementById('as-assets').textContent = d.total_assets;
+    try {
+        const r = await fetch('/api/summary');
+        const d = await r.json();
+        document.getElementById('as-total').textContent = d.total_alerts.toLocaleString();
+        document.getElementById('as-attacks').textContent = d.active_attacks.toLocaleString();
+        // Count distinct assets with at least one alert
+        const ar = await fetch('/api/alerts');
+        const alerts = await ar.json();
+        const affectedAssets = new Set(alerts.map(a => a.ip)).size;
+        document.getElementById('as-assets').textContent = affectedAssets;
+    } catch(e) { console.error('Alert stats error:', e); }
+}
+
+function refreshAlerts() {
+    alertsLoaded = true; // keep flag set, just reload data
+    loadAlerts();
+    loadAlertStats();
 }
 
 async function loadAlerts() {
