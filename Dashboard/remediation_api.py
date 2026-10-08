@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pipeline_paths import DB_CONFIG
 """
 Remediation Advisor API Extension for CAVE-OT Dashboard
 Adds LLM remediation + policy gatekeeper endpoints to the Flask app.
@@ -43,17 +46,12 @@ def _get_predictor():
 
 remediation_bp = Blueprint('remediation', __name__, url_prefix='/api/remediation')
 
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "dbname": "cave_ot",
-    "user": "postgres",
-    "password": "admin"
-}
+
 
 
 def get_db_connection():
-    return psycopg2.connect(**DB_CONFIG)
+    from request_connection import connect
+    return connect(DB_CONFIG)
 
 
 # ── Bulk-generation progress state (in-memory — mirrors the docker-scan
@@ -67,6 +65,7 @@ def _asset_dict(row):
         "device_type": row["device_type"], "vendor": row["vendor"], "product": row["product"],
         "firmware": row.get("firmware"), "zone": row["zone"], "criticality": row["criticality"],
         "service": row["service"], "port": row.get("port"),
+        "encrypted":row.get("encrypted"),"days_since_patch":row.get("days_since_patch"),"firmware_eol":row.get("firmware_eol"),
     }
 
 
@@ -96,8 +95,8 @@ def _policy_context(cur, asset_id):
     row = cur.fetchone()
     if not row:
         return None, None
-    ml_signal = {"compliance_status": row["compliance_status"], "compliance_score": row["compliance_score"]}
-    context_str = f"{row['compliance_status']} (score {row['compliance_score']:.2f}) — {row['explanation']}"
+    ml_signal = None
+    context_str = f"{row['compliance_status']} (rule pass fraction {row['compliance_score']:.2f}) — {row['explanation']}"
     return context_str, ml_signal
 
 
@@ -114,20 +113,18 @@ def _generate_one(cur, conn, asset_id, cve_id, force=False):
     if not vuln_row:
         raise ValueError(f"No vulnerability row for asset {asset_id} / {cve_id}")
 
+    if vuln_row.get('applicability')!='CONFIRMED':raise ValueError('Confirm CVE applicability before requesting remediation')
+    description=remediation_advisor.get_cve_description(cve_id)
+    asset=_asset_dict(asset_row);cve=_cve_dict(vuln_row,description)
+    attack_path_info=_attack_path_info(cur,asset_row['device_type'])
+    policy_context,ml_signal=_policy_context(cur,asset_id)
+    policy_rules=policy_gatekeeper.load_active_rules(cur)
+    import hashlib
+    fingerprint=hashlib.sha256(json.dumps({'asset':asset,'cve':cve,'path':attack_path_info,'policy':policy_context,'rules':policy_rules},sort_keys=True,default=str).encode()).hexdigest()
     if not force:
-        cur.execute("""
-            SELECT * FROM remediation_recommendations
-            WHERE asset_id = %s AND cve_id = %s AND risk_tier_at_generation = %s;
-        """, (asset_id, cve_id, vuln_row["risk_tier"]))
-        cached = cur.fetchone()
-        if cached:
-            return dict(cached), True
-
-    description = remediation_advisor.get_cve_description(cve_id)
-    asset = _asset_dict(asset_row)
-    cve = _cve_dict(vuln_row, description)
-    attack_path_info = _attack_path_info(cur, asset_row["device_type"])
-    policy_context, ml_signal = _policy_context(cur, asset_id)
+        cur.execute('SELECT * FROM remediation_recommendations WHERE asset_id=%s AND cve_id=%s AND context_fingerprint=%s',(asset_id,cve_id,fingerprint))
+        cached=cur.fetchone()
+        if cached:return dict(cached),True
 
     result, context_chunks, model_used = remediation_advisor.generate_remediation(
         asset, cve, attack_path_info, policy_context
@@ -142,12 +139,12 @@ def _generate_one(cur, conn, asset_id, cve_id, force=False):
              recommendation, rationale, ot_safety_note, requires_maintenance_window,
              llm_confidence, llm_model, retrieved_context,
              gatekeeper_verdict, gatekeeper_reasons, gatekeeper_matched_rules, ml_confidence_signal,
-             status, generated_at, updated_at)
+             status, context_fingerprint, generated_at, updated_at)
         VALUES (%(asset_id)s, %(cve_id)s, %(risk_score)s, %(risk_tier)s,
                 %(recommendation)s, %(rationale)s, %(ot_safety_note)s, %(requires_window)s,
                 %(confidence)s, %(model)s, %(context)s,
                 %(verdict)s, %(reasons)s, %(matched_rules)s, %(ml_signal)s,
-                'PENDING', NOW(), NOW())
+                'PENDING', %(fingerprint)s, NOW(), NOW())
         ON CONFLICT (asset_id, cve_id) DO UPDATE SET
             risk_score_at_generation = EXCLUDED.risk_score_at_generation,
             risk_tier_at_generation  = EXCLUDED.risk_tier_at_generation,
@@ -163,12 +160,13 @@ def _generate_one(cur, conn, asset_id, cve_id, force=False):
             gatekeeper_matched_rules = EXCLUDED.gatekeeper_matched_rules,
             ml_confidence_signal     = EXCLUDED.ml_confidence_signal,
             status                   = 'PENDING',
+            context_fingerprint=EXCLUDED.context_fingerprint,
             decision_note            = NULL,
             decided_at               = NULL,
             updated_at               = NOW()
         RETURNING id;
     """, {
-        "asset_id": asset_id, "cve_id": cve_id,
+        "asset_id": asset_id, "cve_id": cve_id, "fingerprint":fingerprint,
         "risk_score": vuln_row["risk_score"], "risk_tier": vuln_row["risk_tier"],
         "recommendation": result.recommendation, "rationale": result.rationale,
         "ot_safety_note": result.ot_safety_note, "requires_window": result.requires_maintenance_window,
@@ -261,7 +259,7 @@ def list_candidates():
                        ROW_NUMBER() OVER (PARTITION BY a.id ORDER BY v.risk_score DESC) AS rn
                 FROM vulnerabilities v
                 JOIN assets a ON a.id = v.asset_id
-                WHERE a.status = 'ACTIVE' AND v.risk_tier IN ('CRITICAL', 'HIGH')
+                WHERE a.status = 'ACTIVE' AND v.applicability='CONFIRMED' AND v.risk_tier IN ('CRITICAL', 'HIGH')
             )
             SELECT r.* FROM ranked r
             WHERE r.rn = 1
@@ -281,21 +279,29 @@ def list_candidates():
 @remediation_bp.route('/generate', methods=['POST'])
 def generate_one():
     try:
-        body = request.get_json(force=True, silent=True) or {}
+        body = request.get_json(silent=True)
+        if not isinstance(body,dict):return jsonify(success=False,message="JSON object required"),400
         asset_id = body.get("asset_id")
         cve_id = body.get("cve_id")
-        force = bool(body.get("force", False))
+        force = body.get("force", False)
+        if not isinstance(force,bool) or isinstance(asset_id,bool) or not isinstance(asset_id,int) or asset_id<1:return jsonify(success=False,message="Positive integer asset_id and boolean force required"),422
         if not asset_id or not cve_id:
             return jsonify({"success": False, "message": "asset_id and cve_id are required"}), 400
 
+        from validation import validate_cve
+        validate_cve({'cve_id':cve_id})
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         record, cached = _generate_one(cur, conn, asset_id, cve_id, force=force)
         conn.close()
 
         return jsonify({"success": True, "cached": cached, "recommendation": record})
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
+    except ValueError as e:
+        return jsonify(success=False,message=str(e)),422
+    except psycopg2.Error:
+        return jsonify(success=False,message='Remediation database unavailable'),503
+    except Exception:
+        return jsonify(success=False,message='Remediation generation failed; verify provider configuration'),502
 
 
 def _run_bulk_generation():
@@ -308,7 +314,7 @@ def _run_bulk_generation():
                 SELECT a.id AS asset_id, a.device_type, v.cve_id, v.risk_score, v.risk_tier,
                        ROW_NUMBER() OVER (PARTITION BY a.id ORDER BY v.risk_score DESC) AS rn
                 FROM vulnerabilities v JOIN assets a ON a.id = v.asset_id
-                WHERE a.status = 'ACTIVE' AND v.risk_tier IN ('CRITICAL', 'HIGH')
+                WHERE a.status = 'ACTIVE' AND v.applicability='CONFIRMED' AND v.risk_tier IN ('CRITICAL', 'HIGH')
             )
             SELECT r.asset_id, r.device_type, r.cve_id FROM ranked r
             WHERE r.rn = 1
@@ -364,26 +370,39 @@ def generate_status():
         return jsonify(dict(_gen_state))
 
 
-def _decide(rec_id, new_status):
+def _decide(rec_id,new_status):
+    conn=None
     try:
-        body = request.get_json(force=True, silent=True) or {}
-        note = body.get("note", "")
-
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("""
-            UPDATE remediation_recommendations
-            SET status = %s, decision_note = %s, decided_at = NOW(), updated_at = NOW()
-            WHERE id = %s;
-        """, (new_status, note, rec_id))
-        if cur.rowcount == 0:
-            conn.close()
-            return jsonify({"success": False, "message": "Recommendation not found"}), 404
+        body=request.get_json(silent=True)
+        if not isinstance(body,dict):return jsonify(success=False,message='JSON object required'),400
+        note=body.get('note','')
+        if not isinstance(note,str) or len(note)>2000:return jsonify(success=False,message='Note must be text up to 2000 characters'),422
+        conn=get_db_connection()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute('SELECT * FROM remediation_recommendations WHERE id=%s FOR UPDATE',(rec_id,))
+            row=cur.fetchone()
+            if not row:return jsonify(success=False,message='Recommendation not found'),404
+            if row['status']!='PENDING':return jsonify(success=False,message='Only pending recommendations can be decided'),409
+            if new_status=='APPROVED':
+                if row['gatekeeper_verdict']=='BLOCK':return jsonify(success=False,message='Blocked recommendations cannot be approved'),409
+                if row['gatekeeper_verdict']=='NEEDS_REVIEW' and not note.strip():return jsonify(success=False,message='Review note required'),422
+                cur.execute('SELECT * FROM assets WHERE id=%s',(row['asset_id'],));asset=cur.fetchone()
+                cur.execute('SELECT * FROM vulnerabilities WHERE asset_id=%s AND cve_id=%s',(row['asset_id'],row['cve_id']));cve=cur.fetchone()
+                if not asset or not cve or cve.get('applicability')!='CONFIRMED':return jsonify(success=False,message='Current applicability evidence is missing'),409
+                from types import SimpleNamespace
+                rec=SimpleNamespace(recommendation=row['recommendation'],requires_maintenance_window=row['requires_maintenance_window'],confidence=row['llm_confidence'])
+                verdict=policy_gatekeeper.check(dict(asset),dict(cve),rec,_attack_path_info(cur,asset['device_type']),policy_gatekeeper.load_active_rules(cur))
+                if verdict['verdict']=='BLOCK':return jsonify(success=False,message='Current safety checks block approval',reasons=verdict['reasons']),409
+                if verdict['verdict']=='NEEDS_REVIEW' and not note.strip():return jsonify(success=False,message='Current checks require a review note'),422
+            cur.execute('UPDATE remediation_recommendations SET status=%s,decision_note=%s,decided_at=NOW(),updated_at=NOW() WHERE id=%s',(new_status,note,rec_id))
+            cur.execute('INSERT INTO remediation_decision_audit(recommendation_id,previous_status,new_status,decision_note,gatekeeper_verdict) VALUES (%s,%s,%s,%s,%s)',(rec_id,row['status'],new_status,note,row['gatekeeper_verdict']))
         conn.commit()
-        conn.close()
-        return jsonify({"success": True, "message": f"Marked {new_status}"})
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
+        return jsonify(success=True,message=f'Marked {new_status}; no device configuration changed')
+    except psycopg2.Error:
+        if conn:conn.rollback()
+        return jsonify(success=False,message='Decision database unavailable'),503
+    finally:
+        if conn:conn.close()
 
 
 @remediation_bp.route('/<int:rec_id>/approve', methods=['POST'])

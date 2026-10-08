@@ -1,6 +1,9 @@
 from scapy.all import rdpcap, IP, TCP, UDP
 import json
 import re
+import os
+from pipeline_paths import ENGINE_FOLDER
+from snapshot_io import atomic_json
 
 PORT_MAP = {
     502:   {"service": "Modbus",  "device_type": "Dosing_Pump_PLC",        "zone": "OT"},
@@ -148,7 +151,10 @@ def read_suricata_alerts(log_file="/var/log/suricata/fast.log"):
                 msg       = msg_match.group(1).strip()
                 dest_port = int(port_match.group(1))
                 src_ip    = src_match.group(1) if src_match else "unknown"
-                if "Attack" in msg or "Rapid" in msg or "Brute" in msg:
+                priority_match=re.search(r'\[Priority: (\d+)\]',line)
+                if priority_match:
+                    severity=int(priority_match.group(1))
+                elif "Attack" in msg or "Rapid" in msg or "Brute" in msg:
                     severity = 1
                 elif "Write" in msg:
                     severity = 2
@@ -158,11 +164,22 @@ def read_suricata_alerts(log_file="/var/log/suricata/fast.log"):
                     "message":   msg,
                     "dest_port": dest_port,
                     "src_ip":    src_ip,
+                    "dest_ip":re.search(r'-> ([\d\.]+):',line).group(1),
                     "severity":  severity
                 })
     except Exception as e:
         print(f"[!] Suricata log error: {e}")
     return alerts
+
+def observed_transport(packet,service):
+    """Recognize plaintext application bytes; ports alone never establish TLS."""
+    if TCP not in packet:return None,None
+    payload=bytes(packet[TCP].payload)
+    if payload.startswith((b'HTTP/',b'GET ',b'POST ',b'HEAD ',b'PUT ',b'DELETE ')):
+        return False,'HTTP'
+    if service=='Modbus' and len(payload)>=8 and payload[2:4]==b'\x00\x00' and int.from_bytes(payload[4:6],'big')==len(payload)-6 and payload[7] in (1,2,3,4,5,6,15,16):
+        return False,'Modbus'
+    return None,None
 
 def discover_assets(pcap_file):
     print(f"[*] Reading: {pcap_file}")
@@ -193,10 +210,15 @@ def discover_assets(pcap_file):
             actual_port = src_port
             actual_dst  = src
         if not actual_port:
-            continue
+            # Observe destination service candidates; arbitrary traffic cannot establish identity.
+            if TCP in pkt and not (int(pkt[TCP].flags) & 0x02 and not int(pkt[TCP].flags) & 0x10):
+                continue
+            actual_port, actual_dst = port, dst
+            if not actual_port:
+                continue
         asset_key = f"{actual_dst}:{actual_port}"
         if asset_key not in assets:
-            a = PORT_MAP[actual_port].copy()
+            a = PORT_MAP.get(actual_port,{"device_type":"Unknown","service":"Unknown","zone":"Unknown"}).copy()
             a["ip"]           = actual_dst
             a["port"]         = actual_port
             a["talkers"]      = set()
@@ -204,13 +226,22 @@ def discover_assets(pcap_file):
             a["total_size"]   = 0
             if actual_port in CONPOT_CONFIG:
                 a.update(CONPOT_CONFIG[actual_port])
+                a["identity_source"] = "configured_testbed_inventory"
+                a["identity_verified"] = False
             else:
                 a["vendor"]      = "Unknown"
                 a["product"]     = "Unknown"
                 a["firmware"]    = "Unknown"
-                a["description"] = ""
+                a["description"] = "Observed endpoint; identity unresolved"
+                a["identity_source"] = "passive_endpoint"
+                a["identity_verified"] = False
             a["criticality"] = CRITICALITY_MAP.get(a["device_type"], 0.5)
             assets[asset_key] = a
+        encrypted,protocol=observed_transport(pkt,assets[asset_key].get('service'))
+        if encrypted is not None:
+            assets[asset_key]['encrypted']=encrypted
+            assets[asset_key]['transport_evidence']='Recognized plaintext application payload at capture point'
+            assets[asset_key]['service']=protocol
         assets[asset_key]["talkers"].add(src)
         assets[asset_key]["packet_count"] += 1
         assets[asset_key]["total_size"] += len(pkt)
@@ -234,9 +265,9 @@ def run(pcap_file):
 
     for key, asset in assets.items():
         port           = asset["port"]
-        asset_alerts   = [a for a in alerts if a["dest_port"] == port]
+        asset_alerts   = [a for a in alerts if a["dest_port"] == port and a.get("dest_ip",asset["ip"])==asset["ip"]]
         alert_count    = len(asset_alerts)
-        alert_severity = min((a["severity"] for a in asset_alerts), default=0)
+        alert_severity = min((a["severity"] for a in asset_alerts), default=3)
         is_attacked    = 1 if any(a["severity"] == 1 for a in asset_alerts) else 0
 
         assets_output.append({
@@ -248,6 +279,9 @@ def run(pcap_file):
             "vendor":       asset.get("vendor"),
             "product":      asset.get("product"),
             "firmware":     asset.get("firmware"),
+            "identity_source":asset.get("identity_source"),"identity_verified":asset.get("identity_verified",False),
+            "firmware_source":asset.get("identity_source"),"firmware_verified":False,
+            "encrypted":asset.get('encrypted'),"transport_evidence":asset.get('transport_evidence'),
             "description":  asset.get("description"),
             "criticality":  asset["criticality"],
             "packet_count": asset["packet_count"],
@@ -267,17 +301,18 @@ def run(pcap_file):
             "description":    asset.get("description"),
             "criticality":    asset["criticality"],
             "alert_count":    alert_count,
+            "risk_alert_count":sum(a["severity"]<=2 for a in asset_alerts),
+            "risk_alert_severity":min((a["severity"] for a in asset_alerts if a["severity"]<=2),default=3),
             "alert_severity": alert_severity,
             "is_attacked":    is_attacked,
-            "alert_messages": [a["message"] for a in asset_alerts]
+            "alert_messages": [a["message"] for a in asset_alerts],
+            "alert_events":asset_alerts
         })
 
-    with open("assets.json", "w") as f:
-        json.dump(assets_output, f, indent=2)
+    atomic_json(os.path.join(ENGINE_FOLDER,"assets.json"),assets_output)
     print(f"\n[+] assets.json saved -> {len(assets_output)} assets")
 
-    with open("suricata_context.json", "w") as f:
-        json.dump(suricata_output, f, indent=2)
+    atomic_json(os.path.join(ENGINE_FOLDER,"suricata_context.json"),suricata_output)
     print(f"[+] suricata_context.json saved -> {len(suricata_output)} assets")
 
     print("\n" + "="*60)
@@ -296,4 +331,4 @@ def run(pcap_file):
     print(f"\n[+] Done. Feed assets.json into your model.")
 
 if __name__ == "__main__":
-    run("test_all.pcap")
+    run(os.path.join(ENGINE_FOLDER,"test_all.pcap"))

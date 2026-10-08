@@ -55,13 +55,13 @@ def calculate_metrics(results, k_values=[1, 5, 10]):
     
     metrics['total_queries'] = total
     metrics['found_in_top_k'] = found_count
-    metrics['accuracy'] = found_count / total if total > 0 else 0
+    metrics['hit_rate'] = found_count / total if total > 0 else 0
     
     for k in k_values:
-        precision_at_k = sum(1 for r in results if r['found'] and r['position'] <= k) / total
-        metrics[f'precision@{k}'] = precision_at_k
+        hit_rate_at_k = sum(1 for r in results if r['found'] and r['position'] <= k) / total if total else 0
+        metrics[f'hit_rate@{k}'] = hit_rate_at_k
     
-    reciprocal_ranks = [1/r['position'] for r in results if r['found']]
+    reciprocal_ranks = [1/r['position'] if r['found'] else 0 for r in results]
     metrics['mrr'] = np.mean(reciprocal_ranks) if reciprocal_ranks else 0
     
     positions = [r['position'] for r in results if r['found']]
@@ -215,10 +215,10 @@ def main():
     print("-" * 60)
     print(f"Total Test Queries:        {test_metrics['total_queries']}")
     print(f"Found in Top 10:           {test_metrics['found_in_top_k']}")
-    print(f"Overall Accuracy:          {test_metrics['accuracy']:.2%}")
-    print(f"\nPrecision@1:               {test_metrics['precision@1']:.2%}")
-    print(f"Precision@5:               {test_metrics['precision@5']:.2%}")
-    print(f"Precision@10:              {test_metrics['precision@10']:.2%}")
+    print(f"Overall retrieval hit rate:          {test_metrics['hit_rate']:.2%}")
+    print(f"\nHit rate@1:               {test_metrics['hit_rate@1']:.2%}")
+    print(f"Hit rate@5:               {test_metrics['hit_rate@5']:.2%}")
+    print(f"Hit rate@10:              {test_metrics['hit_rate@10']:.2%}")
     print(f"\nMean Reciprocal Rank:      {test_metrics['mrr']:.4f}")
     print(f"Average Position:          {test_metrics['avg_position']:.2f}")
     print(f"\nAvg Similarity Score:      {test_metrics['avg_similarity_score']:.4f}")

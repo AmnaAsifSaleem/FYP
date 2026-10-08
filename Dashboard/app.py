@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pipeline_paths import DB_CONFIG
 """
 CAVE-OT Dashboard — Flask Application
 ======================================
@@ -29,21 +32,18 @@ import psycopg2
 import psycopg2.extras
 
 app = Flask(__name__)
+from request_connection import close_connections
+app.teardown_appcontext(close_connections)
 
 # ── DB Config ─────────────────────────────────────────────────
-DB_CONFIG = {
-    "host":     "localhost",
-    "port":     5432,
-    "dbname":   "cave_ot",
-    "user":     "postgres",
-    "password": "admin"
-}
+
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def get_conn():
-    return psycopg2.connect(**DB_CONFIG)
+    from request_connection import connect
+    return connect(DB_CONFIG)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -106,8 +106,12 @@ def api_attack_paths():
             if r.get('computed_at'):
                 r['computed_at'] = r['computed_at'].isoformat()
         return jsonify(rows)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except ValueError as e:
+        return jsonify(error=str(e)),422
+    except psycopg2.Error:
+        return jsonify(error='Database unavailable; previous results preserved'),503
+    except Exception:
+        return jsonify(error='Unable to complete request'),500
 
 
 @app.route('/api/attack_path_nodes')
@@ -129,8 +133,12 @@ def api_attack_path_nodes():
             if r.get('updated_at'):
                 r['updated_at'] = r['updated_at'].isoformat()
         return jsonify(rows)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except ValueError as e:
+        return jsonify(error=str(e)),422
+    except psycopg2.Error:
+        return jsonify(error='Database unavailable; previous results preserved'),503
+    except Exception:
+        return jsonify(error='Unable to complete request'),500
 
 
 # ─────────────────────────────────────────────────────────────
@@ -146,50 +154,51 @@ def api_summary():
         cur.execute("SELECT COUNT(*) FROM assets;")
         total_assets = cur.fetchone()[0]
 
-        cur.execute("SELECT COUNT(*) FROM assets WHERE status = 'ACTIVE';")
+        cur.execute("SELECT COUNT(*) FROM assets WHERE status = 'ACTIVE' AND last_seen >= NOW()-INTERVAL '3 minutes';")
         active_assets = cur.fetchone()[0]
+        monitoring_running=_scan_running()
+        if not monitoring_running:active_assets=0
 
-        # CVE/alert totals only count vulnerabilities and alerts belonging to
-        # currently ACTIVE assets — an asset that's gone quiet shouldn't keep
-        # inflating the headline numbers with stale findings.
+        # Show saved candidate/confirmed findings in both live and historical mode.
+        # Device availability is represented separately, without discarding history.
         cur.execute("""
             SELECT COUNT(*) FROM vulnerabilities v
-            JOIN assets a ON a.id = v.asset_id WHERE a.status = 'ACTIVE';
+            JOIN assets a ON a.id = v.asset_id WHERE v.applicability IN ('CONFIRMED','POTENTIAL');
         """)
         total_cves = cur.fetchone()[0]
 
         cur.execute("""
             SELECT COUNT(*) FROM vulnerabilities v
             JOIN assets a ON a.id = v.asset_id
-            WHERE a.status = 'ACTIVE' AND v.risk_tier = 'CRITICAL';
+            WHERE v.applicability IN ('CONFIRMED','POTENTIAL') AND v.risk_tier = 'CRITICAL';
         """)
         critical_cves = cur.fetchone()[0]
 
         cur.execute("""
             SELECT COUNT(*) FROM vulnerabilities v
             JOIN assets a ON a.id = v.asset_id
-            WHERE a.status = 'ACTIVE' AND v.risk_tier = 'HIGH';
+            WHERE v.applicability IN ('CONFIRMED','POTENTIAL') AND v.risk_tier = 'HIGH';
         """)
         high_cves = cur.fetchone()[0]
 
         cur.execute("""
             SELECT COUNT(*) FROM vulnerabilities v
             JOIN assets a ON a.id = v.asset_id
-            WHERE a.status = 'ACTIVE' AND v.risk_tier = 'MEDIUM';
+            WHERE v.applicability IN ('CONFIRMED','POTENTIAL') AND v.risk_tier = 'MEDIUM';
         """)
         medium_cves = cur.fetchone()[0]
 
         cur.execute("""
             SELECT COUNT(*) FROM vulnerabilities v
             JOIN assets a ON a.id = v.asset_id
-            WHERE a.status = 'ACTIVE' AND v.risk_tier = 'LOW';
+            WHERE v.applicability IN ('CONFIRMED','POTENTIAL') AND v.risk_tier = 'LOW';
         """)
         low_cves = cur.fetchone()[0]
 
         cur.execute("""
             SELECT COUNT(*) FROM vulnerabilities v
             JOIN assets a ON a.id = v.asset_id
-            WHERE a.status = 'ACTIVE' AND v.kev = TRUE;
+            WHERE v.applicability IN ('CONFIRMED','POTENTIAL') AND v.kev = TRUE;
         """)
         kev_cves = cur.fetchone()[0]
 
@@ -197,7 +206,7 @@ def api_summary():
             SELECT v.cve_id, v.risk_score, a.vendor, a.product, a.ip, a.device_type
             FROM vulnerabilities v
             JOIN assets a ON a.id = v.asset_id
-            WHERE a.status = 'ACTIVE' AND v.kev = TRUE
+            WHERE v.applicability IN ('CONFIRMED','POTENTIAL') AND v.kev = TRUE
             ORDER BY v.risk_score DESC
             LIMIT 5;
         """)
@@ -209,29 +218,38 @@ def api_summary():
 
         cur.execute("""
             SELECT COALESCE(SUM(al.alert_count), 0) FROM alerts al
-            JOIN assets a ON a.id = al.asset_id WHERE a.status = 'ACTIVE';
+            JOIN assets a ON a.id = al.asset_id WHERE TRUE;
         """)
         total_alerts = int(cur.fetchone()[0])
 
         cur.execute("""
             SELECT COALESCE(SUM(al.alert_count), 0) FROM alerts al
             JOIN assets a ON a.id = al.asset_id
-            WHERE a.status = 'ACTIVE' AND al.is_active_attack = TRUE;
+            WHERE al.is_active_attack = TRUE;
         """)
         active_attacks = int(cur.fetchone()[0])
 
         cur.execute("""
             SELECT COUNT(*) FROM assets a
-            WHERE a.status = 'ACTIVE' AND a.is_anomalous = TRUE;
+            WHERE a.is_anomalous = TRUE;
         """)
         anomalous_assets = cur.fetchone()[0]
 
+        cur.execute("SELECT COUNT(*) FROM vulnerabilities WHERE applicability='CONFIRMED';")
+        confirmed_cves = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM vulnerabilities WHERE applicability='POTENTIAL';")
+        potential_cves = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(DISTINCT al.asset_id) FROM alerts al JOIN assets a ON a.id=al.asset_id WHERE al.alert_count>0;")
+        affected_assets = cur.fetchone()[0]
         conn.close()
         return jsonify({
+            "monitoring_running":monitoring_running,
+            "data_mode":"LIVE" if monitoring_running else "HISTORICAL",
             "total_assets":   total_assets,
             "active_assets":  active_assets,
-            "inactive_assets": total_assets - active_assets,
-            "total_cves":     total_cves,
+            "inactive_assets": total_assets - active_assets if monitoring_running else 0,
+            "not_monitored_assets":0 if monitoring_running else total_assets,
+            "total_cves": total_cves, "confirmed_cves": confirmed_cves, "potential_cves": potential_cves,
             "critical_cves":  critical_cves,
             "high_cves":      high_cves,
             "medium_cves":    medium_cves,
@@ -239,11 +257,16 @@ def api_summary():
             "kev_cves":       kev_cves,
             "kev_details":    kev_details,
             "total_alerts":   total_alerts,
+            "affected_assets": affected_assets,
             "active_attacks": active_attacks,
             "anomalous_assets": anomalous_assets,
         })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except ValueError as e:
+        return jsonify(error=str(e)),422
+    except psycopg2.Error:
+        return jsonify(error='Database unavailable; previous results preserved'),503
+    except Exception:
+        return jsonify(error='Unable to complete request'),500
 
 
 # ─────────────────────────────────────────────────────────────
@@ -257,7 +280,7 @@ def api_assets():
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""
             SELECT
-                a.*,
+                a.*, (a.last_seen >= NOW()-INTERVAL '3 minutes') AS observed_recently,
                 COUNT(v.id) AS total_cves,
                 COUNT(CASE WHEN v.risk_tier = 'CRITICAL' THEN 1 END) AS critical_cves,
                 COUNT(CASE WHEN v.risk_tier = 'HIGH' THEN 1 END) AS high_cves,
@@ -267,7 +290,9 @@ def api_assets():
             GROUP BY a.id
             ORDER BY max_risk_score DESC NULLS LAST;
         """)
-        rows = [dict(r) for r in cur.fetchall()]
+        from monitoring_view import asset_view
+        running=_scan_running()
+        rows = [asset_view(r,running) for r in cur.fetchall()]
         conn.close()
         # Convert datetime to string
         for r in rows:
@@ -275,8 +300,12 @@ def api_assets():
                 if r.get(k):
                     r[k] = r[k].strftime('%Y-%m-%d %H:%M:%S')
         return jsonify(rows)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except ValueError as e:
+        return jsonify(error=str(e)),422
+    except psycopg2.Error:
+        return jsonify(error='Database unavailable; previous results preserved'),503
+    except Exception:
+        return jsonify(error='Unable to complete request'),500
 
 
 @app.route('/api/assets/<int:asset_id>/cves')
@@ -298,8 +327,12 @@ def api_asset_cves(asset_id):
                 if r.get(k):
                     r[k] = r[k].strftime('%Y-%m-%d %H:%M:%S')
         return jsonify(rows)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except ValueError as e:
+        return jsonify(error=str(e)),422
+    except psycopg2.Error:
+        return jsonify(error='Database unavailable; previous results preserved'),503
+    except Exception:
+        return jsonify(error='Unable to complete request'),500
 
 
 # ─────────────────────────────────────────────────────────────
@@ -310,7 +343,10 @@ def api_asset_cves(asset_id):
 def api_vulnerabilities():
     try:
         tier   = request.args.get('tier', '')
-        limit  = int(request.args.get('limit', 200))
+        try: limit=int(request.args.get('limit',200))
+        except ValueError:return jsonify(error='limit must be an integer'),422
+        if not 1<=limit<=1000:return jsonify(error='limit must be between 1 and 1000'),422
+        if tier and tier not in ('LOW','MEDIUM','HIGH','CRITICAL'):return jsonify(error='Invalid risk tier'),422
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
@@ -320,7 +356,7 @@ def api_vulnerabilities():
         cur.execute(f"""
             SELECT
                 v.id, v.cve_id, v.cvss, v.epss, v.kev,
-                v.risk_score, v.risk_tier,
+                v.risk_score, v.risk_tier, v.applicability, v.applicability_evidence, v.score_version,
                 v.c_impact, v.i_impact, v.a_impact,
                 v.discovered_at,
                 a.ip, a.port, a.vendor, a.product,
@@ -339,8 +375,12 @@ def api_vulnerabilities():
                 r['discovered_at'] = r['discovered_at'].strftime('%Y-%m-%d %H:%M:%S')
             r['kev'] = bool(r['kev'])
         return jsonify(rows)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except ValueError as e:
+        return jsonify(error=str(e)),422
+    except psycopg2.Error:
+        return jsonify(error='Database unavailable; previous results preserved'),503
+    except Exception:
+        return jsonify(error='Unable to complete request'),500
 
 
 # ─────────────────────────────────────────────────────────────
@@ -353,7 +393,7 @@ def api_alerts():
         conn = get_conn()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""
-            SELECT al.*, a.ip, a.vendor, a.product, a.zone
+            SELECT al.*, a.ip, a.port AS asset_port, a.vendor, a.product, a.zone
             FROM alerts al
             JOIN assets a ON a.id = al.asset_id
             ORDER BY al.detected_at DESC
@@ -365,8 +405,12 @@ def api_alerts():
             if r.get('detected_at'):
                 r['detected_at'] = r['detected_at'].strftime('%Y-%m-%d %H:%M:%S')
         return jsonify(rows)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except ValueError as e:
+        return jsonify(error=str(e)),422
+    except psycopg2.Error:
+        return jsonify(error='Database unavailable; previous results preserved'),503
+    except Exception:
+        return jsonify(error='Unable to complete request'),500
 
 
 # ─────────────────────────────────────────────────────────────
@@ -387,16 +431,20 @@ def chart_cves_per_device():
                 COUNT(CASE WHEN v.risk_tier = 'MEDIUM' THEN 1 END) AS medium,
                 COUNT(CASE WHEN v.risk_tier = 'LOW' THEN 1 END) AS low
             FROM assets a
-            LEFT JOIN vulnerabilities v ON v.asset_id = a.id
-            WHERE a.status = 'ACTIVE'
+            LEFT JOIN vulnerabilities v ON v.asset_id = a.id AND v.applicability IN ('CONFIRMED','POTENTIAL')
+            WHERE TRUE
             GROUP BY a.id, a.vendor, a.product
             ORDER BY total DESC;
         """)
         rows = [dict(r) for r in cur.fetchall()]
         conn.close()
         return jsonify(rows)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except ValueError as e:
+        return jsonify(error=str(e)),422
+    except psycopg2.Error:
+        return jsonify(error='Database unavailable; previous results preserved'),503
+    except Exception:
+        return jsonify(error='Unable to complete request'),500
 
 
 @app.route('/api/charts/risk_distribution')
@@ -408,7 +456,7 @@ def chart_risk_distribution():
             SELECT v.risk_tier, COUNT(*) as count
             FROM vulnerabilities v
             JOIN assets a ON a.id = v.asset_id
-            WHERE a.status = 'ACTIVE'
+            WHERE v.applicability IN ('CONFIRMED','POTENTIAL')
             GROUP BY v.risk_tier
             ORDER BY CASE v.risk_tier
                 WHEN 'CRITICAL' THEN 1
@@ -420,8 +468,12 @@ def chart_risk_distribution():
         rows = cur.fetchall()
         conn.close()
         return jsonify([{"tier": r[0], "count": r[1]} for r in rows])
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except ValueError as e:
+        return jsonify(error=str(e)),422
+    except psycopg2.Error:
+        return jsonify(error='Database unavailable; previous results preserved'),503
+    except Exception:
+        return jsonify(error='Unable to complete request'),500
 
 
 @app.route('/api/charts/cvss_distribution')
@@ -440,15 +492,19 @@ def chart_cvss_distribution():
                 COUNT(*) AS count
             FROM vulnerabilities v
             JOIN assets a ON a.id = v.asset_id
-            WHERE a.status = 'ACTIVE'
+            WHERE v.applicability IN ('CONFIRMED','POTENTIAL')
             GROUP BY range
             ORDER BY MIN(v.cvss) DESC;
         """)
         rows = cur.fetchall()
         conn.close()
         return jsonify([{"range": r[0], "count": r[1]} for r in rows])
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except ValueError as e:
+        return jsonify(error=str(e)),422
+    except psycopg2.Error:
+        return jsonify(error='Database unavailable; previous results preserved'),503
+    except Exception:
+        return jsonify(error='Unable to complete request'),500
 
 
 @app.route('/api/charts/zone_risk')
@@ -463,15 +519,19 @@ def chart_zone_risk():
                 ROUND(AVG(v.risk_score)::numeric, 2) AS avg_risk,
                 COUNT(CASE WHEN v.risk_tier = 'CRITICAL' THEN 1 END) AS critical
             FROM assets a
-            LEFT JOIN vulnerabilities v ON v.asset_id = a.id
-            WHERE a.status = 'ACTIVE'
+            LEFT JOIN vulnerabilities v ON v.asset_id = a.id AND v.applicability IN ('CONFIRMED','POTENTIAL')
+            WHERE TRUE
             GROUP BY a.zone;
         """)
         rows = [dict(r) for r in cur.fetchall()]
         conn.close()
         return jsonify(rows)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except ValueError as e:
+        return jsonify(error=str(e)),422
+    except psycopg2.Error:
+        return jsonify(error='Database unavailable; previous results preserved'),503
+    except Exception:
+        return jsonify(error='Unable to complete request'),500
 
 
 # ─────────────────────────────────────────────────────────────
@@ -482,22 +542,14 @@ DOCKER_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file
 
 
 def _scan_running():
-    """True if the caveot-engine container is currently Up."""
-    try:
-        result = subprocess.run(
-            ["docker", "ps", "--filter", "name=caveot-engine",
-             "--filter", "status=running", "--format", "{{.Names}}"],
-            capture_output=True, text=True, timeout=10
-        )
-        return "caveot-engine" in result.stdout
-    except Exception:
-        return False
+    from monitoring_view import scan_running
+    return scan_running()
 
 
 def _docker_daemon_ready():
     """True if the Docker daemon is reachable (Docker Desktop fully started, not just launched)."""
     try:
-        result = subprocess.run(["docker", "info"], capture_output=True, timeout=10)
+        result = subprocess.run(__import__("docker_backend").command("info"), capture_output=True, timeout=10)
         return result.returncode == 0
     except Exception:
         return False
@@ -515,70 +567,91 @@ def _find_docker_desktop_exe():
 
 
 def _ensure_docker_desktop_and_start():
-    """
-    Background-thread target for /api/scan/start.
-    """
+    """Start the configured backend and raise actionable failures to the controller."""
+    from docker_backend import settings, prepare, command
     if not _docker_daemon_ready():
-        exe = _find_docker_desktop_exe()
-        if exe:
-            try:
-                subprocess.Popen([exe], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except Exception:
-                pass
-        deadline = time.time() + 150
-        while time.time() < deadline:
-            if _docker_daemon_ready():
-                break
-            time.sleep(3)
+        if settings()[0] == "wsl":
+            prepare()
         else:
-            print("[scan] Docker daemon never came up — aborting")
-            return
+            exe = _find_docker_desktop_exe()
+            if not exe:
+                raise RuntimeError('Docker is unavailable. Start your configured container engine and retry.')
+            subprocess.Popen([exe], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        deadline = time.monotonic() + 150
+        while not _docker_daemon_ready():
+            if time.monotonic() >= deadline:
+                raise RuntimeError('Container engine did not become ready. Check Docker/WSL and retry.')
+            time.sleep(3)
+    result = subprocess.run(command('compose', 'up', '-d', '--build'), cwd=DOCKER_DIR,
+                            capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=900)
+    if result.returncode:
+        raise RuntimeError((result.stderr or result.stdout or 'Container startup failed')[-2000:])
+    # Invalidate the short status cache after changing container state.
+    import monitoring_view
+    monitoring_view._expires = 0
+    if not _scan_running():
+        raise RuntimeError('Monitoring container exited during startup. Check engine logs and retry.')
 
-    result = subprocess.run(
-        ["docker", "compose", "up", "-d", "--build"],
-        cwd=DOCKER_DIR,
-        capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        print(f"[scan] docker compose up failed:\n{result.stderr[:500]}")
-    else:
-        print("[scan] docker compose up succeeded")
+
+_scan_lock = threading.Lock()
+_scan_operation = {'state': 'IDLE', 'message': '', 'error': None}
+
+
+def _scan_worker(action):
+    try:
+        if action == 'start':
+            _ensure_docker_desktop_and_start()
+        else:
+            from docker_backend import command, release_keeper
+            result = subprocess.run(command('compose', 'down'), cwd=DOCKER_DIR,
+                                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=120)
+            if result.returncode:
+                raise RuntimeError((result.stderr or result.stdout or 'Container shutdown failed')[-2000:])
+            release_keeper()
+        import monitoring_view
+        monitoring_view._expires = 0
+        with _scan_lock:
+            _scan_operation.update(state='IDLE', message='Monitoring started.' if action == 'start' else 'Monitoring stopped.', error=None)
+    except Exception as exc:
+        message = str(exc) or type(exc).__name__
+        print('[scan] ' + action + ' failed: ' + message)
+        with _scan_lock:
+            _scan_operation.update(state='FAILED', message=message, error=message)
 
 
 @app.route('/api/scan/status')
 def api_scan_status():
-    return jsonify({"running": _scan_running()})
+    with _scan_lock:
+        operation = dict(_scan_operation)
+    running = _scan_running()
+    if operation['state'] == 'IDLE':
+        operation['state'] = 'RUNNING' if running else 'STOPPED'
+    return jsonify(running=running, busy=operation['state'] in ('STARTING', 'STOPPING'), **operation)
+
+
+def _request_scan_action(action):
+    with _scan_lock:
+        if _scan_operation['state'] in ('STARTING', 'STOPPING'):
+            return jsonify(success=False, message='A monitoring operation is already in progress.'), 409
+        _scan_operation.update(state='STARTING' if action == 'start' else 'STOPPING', error=None,
+                               message='Building and starting monitoring...' if action == 'start' else 'Stopping monitoring...')
+    try:
+        threading.Thread(target=_scan_worker, args=(action,), daemon=True).start()
+    except Exception as exc:
+        with _scan_lock:
+            _scan_operation.update(state='FAILED', error=str(exc), message=str(exc))
+        return jsonify(success=False, message=str(exc)), 500
+    return jsonify(success=True, message='Monitoring operation accepted.'), 202
 
 
 @app.route('/api/scan/start', methods=['POST'])
 def api_scan_start():
-    if _scan_running():
-        return jsonify({"success": True, "message": "Already running"})
-    try:
-        daemon_was_ready = _docker_daemon_ready()
-        threading.Thread(target=_ensure_docker_desktop_and_start, daemon=True).start()
-        if daemon_was_ready:
-            return jsonify({"success": True, "message": "Starting passive scan..."})
-        return jsonify({
-            "success": True,
-            "message": "Docker Desktop isn't running — launching it, then starting the scan "
-                        "(can take up to ~2 minutes on a cold start)"
-        })
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
+    return _request_scan_action('start')
 
 
 @app.route('/api/scan/stop', methods=['POST'])
 def api_scan_stop():
-    try:
-        subprocess.Popen(
-            ["docker", "compose", "down"],
-            cwd=DOCKER_DIR,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
-        return jsonify({"success": True, "message": "Stopping passive scan..."})
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
+    return _request_scan_action('stop')
 
 
 # ─────────────────────────────────────────────────────────────
@@ -648,12 +721,17 @@ def _start_automated_background_services():
     NOTE: Docker is NOT started automatically. Use the "Start Passive Scan" button
     on the dashboard to start the Docker container stack manually.
     """
+    # Versioned evidence migration runs before any ingest.
+    migration=subprocess.run([sys.executable,os.path.join(BASE_DIR,'Database','migrate_audit_fixes.py')],capture_output=True,text=True)
+    if migration.returncode:
+        print('Database migration failed: '+migration.stderr)
+        return
     # 1. Initial DB sync
     try:
         sync_script = os.path.join(BASE_DIR, "Database", "sync_db.py")
         print("  [Auto-Start] Running initial Database sync...")
         subprocess.run([sys.executable, sync_script], capture_output=True, text=True)
-        print("✓ [Auto-Start] Initial Database sync complete")
+        print("✓ [Auto-Start] Initial Database sync attempted; watcher retries until a complete snapshot is available")
     except Exception as e:
         print(f"⚠ [Auto-Start] Initial DB sync warning: {e}")
 
@@ -691,4 +769,4 @@ if __name__ == '__main__':
     if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
         _start_automated_background_services()
 
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host=os.environ.get("CAVE_OT_BIND","127.0.0.1"), port=5000)

@@ -180,6 +180,18 @@ def parse_nvd_item(item):
                                      or cpe_match.get('versionEndIncluding', '')
                                      or cpe_match.get('versionEndExcluding', ''))
 
+        cpe_matches=[]
+        def collect(node,simple=False):
+            simple=simple and node.get('operator','OR')=='OR' and not node.get('negate',False)
+            for match in node.get('cpeMatch',[]):
+                parts=match.get('criteria','').split(':')
+                if len(parts)>=6:
+                    cpe_matches.append({**match,'vendor':parts[3].replace('_',' '),'product':parts[4].replace('_',' '),'version':parts[5],'simple_configuration':simple})
+            for child in node.get('children',[]):collect(child,False)
+        for config in cve_data.get('configurations',[]):
+            simple=config.get('operator','OR')=='OR' and not config.get('negate',False)
+            for node in config.get('nodes',[]):collect(node,simple)
+
         # CVSS scores
         # NVD 2.0: cve_data['metrics']['cvssMetricV31'][0]['cvssData']
         cvss       = None
@@ -227,6 +239,7 @@ def parse_nvd_item(item):
 
         return {
             "cve_id":        cve_id,
+            "cpe_matches":json.dumps(cpe_matches),
             "vendor":        vendor.lower().strip(),
             "product":       product.lower().strip(),
             "version_start": version_start,

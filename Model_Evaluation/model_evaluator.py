@@ -90,16 +90,16 @@ def calculate_metrics(results, k_values=[1, 5, 10]):
     # Overall accuracy (found in top K)
     metrics['total_queries'] = total
     metrics['found_in_top_k'] = found_count
-    metrics['accuracy'] = found_count / total if total > 0 else 0
+    metrics['hit_rate'] = found_count / total if total > 0 else 0
     
-    # Precision@K and Recall@K
+    # Hit rate@K and Recall@K
     for k in k_values:
-        precision_at_k = sum(1 for r in results if r['found'] and r['position'] <= k) / total
-        metrics[f'precision@{k}'] = precision_at_k
-        metrics[f'recall@{k}'] = precision_at_k  # Same for single relevant doc
+        hit_rate_at_k = sum(1 for r in results if r['found'] and r['position'] <= k) / total if total else 0
+        metrics[f'hit_rate@{k}'] = hit_rate_at_k
+        metrics[f'recall@{k}'] = hit_rate_at_k  # Same for single relevant doc
     
     # Mean Reciprocal Rank (MRR)
-    reciprocal_ranks = [1/r['position'] for r in results if r['found']]
+    reciprocal_ranks = [1/r['position'] if r['found'] else 0 for r in results]
     metrics['mrr'] = np.mean(reciprocal_ranks) if reciprocal_ranks else 0
     
     # Average position of found results
@@ -180,10 +180,10 @@ def main():
     print("-" * 60)
     print(f"Total Test Queries:        {ot_metrics['total_queries']}")
     print(f"Found in Top 10:           {ot_metrics['found_in_top_k']}")
-    print(f"Overall Accuracy:          {ot_metrics['accuracy']:.2%}")
-    print(f"\nPrecision@1:               {ot_metrics['precision@1']:.2%}")
-    print(f"Precision@5:               {ot_metrics['precision@5']:.2%}")
-    print(f"Precision@10:              {ot_metrics['precision@10']:.2%}")
+    print(f"Overall retrieval hit rate:          {ot_metrics['hit_rate']:.2%}")
+    print(f"\nHit rate@1:               {ot_metrics['hit_rate@1']:.2%}")
+    print(f"Hit rate@5:               {ot_metrics['hit_rate@5']:.2%}")
+    print(f"Hit rate@10:              {ot_metrics['hit_rate@10']:.2%}")
     print(f"\nMean Reciprocal Rank:      {ot_metrics['mrr']:.4f}")
     print(f"Average Position:          {ot_metrics['avg_position']:.2f}")
     print(f"\nAvg Similarity Score:      {ot_metrics['avg_similarity_score']:.4f}")
@@ -192,24 +192,24 @@ def main():
     
     print("\n📊 GENERAL MODEL (Baseline)")
     print("-" * 60)
-    print(f"Overall Accuracy:          {general_metrics['accuracy']:.2%}")
-    print(f"Precision@1:               {general_metrics['precision@1']:.2%}")
-    print(f"Precision@5:               {general_metrics['precision@5']:.2%}")
-    print(f"Precision@10:              {general_metrics['precision@10']:.2%}")
+    print(f"Overall retrieval hit rate:          {general_metrics['hit_rate']:.2%}")
+    print(f"Hit rate@1:               {general_metrics['hit_rate@1']:.2%}")
+    print(f"Hit rate@5:               {general_metrics['hit_rate@5']:.2%}")
+    print(f"Hit rate@10:              {general_metrics['hit_rate@10']:.2%}")
     print(f"Mean Reciprocal Rank:      {general_metrics['mrr']:.4f}")
     print(f"Avg Similarity Score:      {general_metrics['avg_similarity_score']:.4f}")
     
     # Improvement analysis
     print("\n📈 IMPROVEMENT (OT vs General)")
     print("-" * 60)
-    acc_improvement = (ot_metrics['accuracy'] - general_metrics['accuracy']) * 100
-    p1_improvement = (ot_metrics['precision@1'] - general_metrics['precision@1']) * 100
-    p5_improvement = (ot_metrics['precision@5'] - general_metrics['precision@5']) * 100
+    acc_improvement = (ot_metrics['hit_rate'] - general_metrics['hit_rate']) * 100
+    p1_improvement = (ot_metrics['hit_rate@1'] - general_metrics['hit_rate@1']) * 100
+    p5_improvement = (ot_metrics['hit_rate@5'] - general_metrics['hit_rate@5']) * 100
     mrr_improvement = (ot_metrics['mrr'] - general_metrics['mrr']) * 100
     
     print(f"Accuracy Improvement:      {acc_improvement:+.2f}%")
-    print(f"Precision@1 Improvement:   {p1_improvement:+.2f}%")
-    print(f"Precision@5 Improvement:   {p5_improvement:+.2f}%")
+    print(f"Hit rate@1 Improvement:   {p1_improvement:+.2f}%")
+    print(f"Hit rate@5 Improvement:   {p5_improvement:+.2f}%")
     print(f"MRR Improvement:           {mrr_improvement:+.2f}%")
     
     # Per-vendor breakdown
@@ -232,8 +232,8 @@ def main():
         'general_model': general_metrics,
         'improvement': {
             'accuracy': acc_improvement,
-            'precision@1': p1_improvement,
-            'precision@5': p5_improvement,
+            'hit_rate@1': p1_improvement,
+            'hit_rate@5': p5_improvement,
             'mrr': mrr_improvement
         },
         'vendor_breakdown': dict(vendor_stats)

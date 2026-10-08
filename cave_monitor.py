@@ -2,7 +2,7 @@ import socket, struct, subprocess, threading
 import time, random, os, re, json, sys, shutil
 from datetime import datetime
 
-SHARED_DIR = "/mnt/hgfs/shared folder"
+SHARED_DIR = os.environ.get("CAVE_OT_SHARED_DIR","/mnt/hgfs/shared folder")
 
 def sync_to_shared(*filenames):
     if not os.path.isdir(SHARED_DIR):
@@ -55,31 +55,7 @@ def get_risk_tier(score):
             return tier
     return "LOW"
 
-def score_cve(cve, criticality, cia_lookup, alert_count=0, alert_severity=3, anomaly_score=0.0):
-    cvss   = cve.get("cvss", 0.0)
-    epss   = cve.get("epss", 0.0)
-    kev    = cve.get("kev",  0)
-    cve_id = cve.get("cve_id", "")
-    if cve_id in cia_lookup:
-        c, i, a = cia_lookup[cve_id]; src = "db"
-    else:
-        c, i, a = _cia_fallback(cvss); src = "fallback"
-    em = 1.00 if epss>=0.70 else (0.97 if epss>=0.40 else (0.94 if epss>=0.10 else 0.91))
-    rl = 1.00 if kev == 1 else 0.95
-    cia_score = (c*0.20) + (i*0.30) + (a*0.50)
-    env = min(cvss * em * rl * cia_score * criticality * 10, 10.0)
-    if kev == 1:
-        env = min(env * 1.10, 10.0)
-    if alert_count > 0:
-        sf = min((alert_count * _SEV_WEIGHT.get(alert_severity, 0.30)) / 30.0, 1.0)
-        env = min(env + sf * 1.5, 10.0)
-    # Behavioral anomaly boost — weighted lower than a confirmed Suricata
-    # signature match (1.5) since this is a heuristic "looks unusual" signal,
-    # not a matched attack pattern. Lets a device with no CVE match and no
-    # IDS alert still surface as risky if its live traffic looks abnormal.
-    if anomaly_score > 0:
-        env = min(env + anomaly_score * 1.0, 10.0)
-    return round(env, 1), c, i, a, src
+from contextual_risk import score_cve, score_details
 
 R   = '\033[0;31m'
 G   = '\033[0;32m'
@@ -92,7 +68,8 @@ DIM = '\033[2m'
 NC  = '\033[0m'
 BOLD= '\033[1m'
 
-CAVE_DIR = "/home/caveot/cave_ot_test"
+from pipeline_paths import ENGINE_FOLDER
+CAVE_DIR = ENGINE_FOLDER
 WIDTH    = 78
 
 DEVICES = {
@@ -307,8 +284,17 @@ def capture_pcap(warm_up_ports=None):
                 send_pkt(name)
         time.sleep(0.5)
 
-    proc.wait()
+    if proc.poll() is None:
+        import signal
+        proc.send_signal(signal.SIGINT)
+        try:proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill();proc.wait(timeout=5)
+    if not os.path.exists(pcap_file) or os.path.getsize(pcap_file)<=24:
+        log_event('Capture produced no packets; preserving last valid snapshot',R)
+        return False
     log_event("Capture done", G)
+    return True
 
 
 # ── Risk scoring ─────────────────────────────────────────────────────────────
@@ -322,7 +308,7 @@ def _load_port_lookup(filename):
     try:
         with open(path) as f:
             for entry in json.load(f):
-                lookup[entry.get("port")] = entry
+                lookup[(entry.get("ip"),entry.get("port"))] = entry
     except Exception:
         pass
     return lookup
@@ -359,12 +345,12 @@ def _score_and_display(results_file):
             ip          = device.get("ip", "?")
             port        = device.get("port")
 
-            suri          = suricata_lookup.get(port, {})
-            alert_count   = suri.get("alert_count", 0)
-            alert_sev     = suri.get("alert_severity", 3)
+            suri          = suricata_lookup.get((ip,port), {})
+            alert_count   = suri.get("risk_alert_count",suri.get("alert_count",0))
+            alert_sev     = suri.get("risk_alert_severity",suri.get("alert_severity")) or 3
 
-            anomaly         = anomaly_lookup.get(port, {})
-            anomaly_score   = anomaly.get("anomaly_score", 0.0)
+            anomaly         = anomaly_lookup.get((ip,port), {})
+            anomaly_score   = anomaly.get("anomaly_score", 0.0) if anomaly.get("is_anomalous") else 0.0
             is_anomalous    = anomaly.get("is_anomalous", False)
             anomaly_reason  = anomaly.get("reason", "")
 
@@ -377,6 +363,8 @@ def _score_and_display(results_file):
                     "c_impact": c, "i_impact": i, "a_impact": a,
                     "cia_source": src,
                     "risk_score": rs, "risk_tier": tier,
+                    "score_version": "cave-ot-2",
+                    "contributions": score_details(cve, criticality, _cia_lookup, alert_count, alert_sev, anomaly_score)["contributions"],
                 })
 
             scored_cves.sort(key=lambda x: (x["risk_score"], x["epss"]), reverse=True)
@@ -415,9 +403,10 @@ def _score_and_display(results_file):
             log_event(f"Scored {device_type}: {top_risk} {top_tier}", tcol)
 
             scored_output["devices"].append({
-                "ip": ip, "device_type": device_type,
+                "ip": ip, "port": port, "device_type": device_type,
                 "vendor": vendor, "product": product,
                 "criticality": criticality,
+                "score_version": "cave-ot-2",
                 "cia_db_hits":  sum(1 for c in scored_cves if c["cia_source"] == "db"),
                 "cia_fallback": sum(1 for c in scored_cves if c["cia_source"] == "fallback"),
                 "anomaly_score": anomaly_score, "is_anomalous": is_anomalous,
@@ -427,15 +416,18 @@ def _score_and_display(results_file):
 
         except Exception as e:
             log_event(f"Scoring error: {e}", R)
+            return False
 
     out_path = os.path.join(CAVE_DIR, "risk_scored_results.json")
     try:
-        with open(out_path, "w") as f:
-            json.dump(scored_output, f, indent=2)
+        from snapshot_io import atomic_json
+        atomic_json(out_path,scored_output)
         sync_to_shared("risk_scored_results.json")
         log_event(f"risk_scored_results.json saved ({len(scored_output['devices'])} devices)", G)
+        return True
     except Exception as e:
         log_event(f"Failed to save risk results: {e}", R)
+        return False
 
 # ── Discovery pipeline ───────────────────────────────────────────────────────
 
@@ -459,16 +451,17 @@ def run_discovery(warm_up_ports=None):
         return
 
     try:
-        capture_pcap(warm_up_ports=warm_up_ports)
+        if capture_pcap(warm_up_ports=warm_up_ports) is False:return
 
         log_event("Running smart_discover.py...", C)
         os.chdir(CAVE_DIR)
         r = subprocess.run(
-            ["sudo", "python3", f"{CAVE_DIR}/smart_discover.py"],
+            [sys.executable, f"{CAVE_DIR}/smart_discover.py"],
             capture_output=True, text=True
         )
         if r.returncode != 0:
             log_event(f"smart_discover failed (rc={r.returncode})", R)
+            return
             print(f"[smart_discover stderr]\n{r.stderr}", flush=True)
         else:
             log_event("assets.json + suricata_context.json updated", G)
@@ -481,6 +474,7 @@ def run_discovery(warm_up_ports=None):
         )
         if r_anom.returncode != 0:
             log_event(f"anomaly_detector failed (rc={r_anom.returncode})", R)
+            return
             print(f"[anomaly_detector stderr]\n{r_anom.stderr}", flush=True)
         else:
             log_event("anomaly_results.json updated", G)
@@ -506,7 +500,7 @@ def run_discovery(warm_up_ports=None):
             if result.returncode == 0 and os.path.exists(results_file):
                 log_event("CVE scan done — scoring risks...", G)
                 sync_to_shared("vulnerability_scan_results.json")
-                _score_and_display(results_file)
+                if not _score_and_display(results_file):return
 
                 # Step 4: Attack path analysis — final step of discovery pipeline
                 risk_path = os.path.join(CAVE_DIR, "risk_scored_results.json")
@@ -514,6 +508,8 @@ def run_discovery(warm_up_ports=None):
                     try:
                         from attack_path import run_attack_path_analysis
                         run_attack_path_analysis()
+                        from snapshot_io import publish_cycle
+                        publish_cycle(CAVE_DIR, SHARED_DIR)
                     except Exception as e:
                         log_event(f"Attack path error: {e}", R)
             else:
@@ -747,11 +743,14 @@ if __name__ == "__main__":
     subprocess.run(["sudo", "pkill", "-f", "suricata"], capture_output=True)
     subprocess.run(["sudo", "rm", "-f", "/var/run/suricata.pid"])
     time.sleep(2)
-    subprocess.Popen(
+    ids_start = subprocess.run(
         ["sudo", "suricata", "-c", "/etc/suricata/suricata.yaml",
-         "--pcap=lo", "-D", "--pidfile", "/var/run/suricata.pid"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+         "-S", "/var/lib/suricata/rules/ot-rules.rules", "-k", "none", "--pcap=lo", "-D", "--pidfile", "/var/run/suricata.pid"],
+        capture_output=True, text=True, timeout=20
     )
+    if ids_start.returncode:
+        print("Suricata startup failed: "+ids_start.stderr,flush=True)
+        sys.exit(1)
     time.sleep(4)
     log_event("Suricata live on loopback", G)
 

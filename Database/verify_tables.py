@@ -1,8 +1,9 @@
+import os
 import psycopg2
 
 conn = psycopg2.connect(
     host="localhost", port=5432,
-    dbname="cave_ot", user="postgres", password="CAVEOT"
+    dbname="cave_ot", user="postgres", password=os.environ.get("CAVE_OT_DB_PASSWORD", "")
 )
 cur = conn.cursor()
 cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;")

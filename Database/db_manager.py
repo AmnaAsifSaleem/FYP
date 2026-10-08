@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pipeline_paths import DB_CONFIG
 """
 CAVE-OT Database Manager
 ========================
@@ -13,13 +16,7 @@ import json
 from datetime import datetime
 
 # ── Database connection settings ──────────────────────────────
-DB_CONFIG = {
-    "host":     "localhost",
-    "port":     5432,
-    "dbname":   "cave_ot",
-    "user":     "postgres",
-    "password": "admin"
-}
+
 
 # Assets not seen for this many minutes get marked INACTIVE
 INACTIVE_AFTER_MINUTES = 10

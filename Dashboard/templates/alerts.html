@@ -4,27 +4,27 @@
 
 {% block content %}
 
-<div class="section-heading">Suricata Security Alerts</div>
+<div class="section-heading">Security alerts — Suricata and policy findings</div>
 
 <!-- Alert stats -->
 <div class="row g-3 mb-4" id="alert-stats">
     <div class="col-6 col-md-3">
         <div class="stat-card red">
-            <div class="stat-label">Total Alerts</div>
+            <div class="stat-label">Recorded Alert Events</div>
             <div class="stat-value red" id="as-total">—</div>
             <i class="bi bi-bell-fill stat-icon" style="color:var(--accent-red)"></i>
         </div>
     </div>
     <div class="col-6 col-md-3">
         <div class="stat-card orange">
-            <div class="stat-label">Active Attacks</div>
+            <div class="stat-label">Attack-Signature Events</div>
             <div class="stat-value orange" id="as-attacks">—</div>
             <i class="bi bi-lightning-fill stat-icon" style="color:var(--accent-orange)"></i>
         </div>
     </div>
     <div class="col-6 col-md-3">
         <div class="stat-card cyan">
-            <div class="stat-label">Affected Assets</div>
+            <div class="stat-label">Assets with Alerts</div>
             <div class="stat-value cyan" id="as-assets">—</div>
             <i class="bi bi-hdd-network stat-icon" style="color:var(--accent-cyan)"></i>
         </div>
@@ -86,8 +86,8 @@
             <div class="col-12 col-md-4">
                 <div style="background:var(--bg-dark);border:1px solid var(--border);border-radius:4px;padding:16px">
                     <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-cyan);letter-spacing:2px;margin-bottom:8px">DATA SOURCE</div>
-                    <div style="font-size:13px;color:var(--text-primary)">Suricata IDS/IPS</div>
-                    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">eve.json log output</div>
+                    <div style="font-size:13px;color:var(--text-primary)">Suricata IDS (passive detection)</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Suricata fast.log and plant policy findings</div>
                 </div>
             </div>
             <div class="col-12 col-md-4">
@@ -105,8 +105,8 @@
             <div class="col-12 col-md-4">
                 <div style="background:var(--bg-dark);border:1px solid var(--border);border-radius:4px;padding:16px">
                     <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-cyan);letter-spacing:2px;margin-bottom:8px">INGEST METHOD</div>
-                    <div style="font-size:13px;color:var(--text-primary)">Python Listener</div>
-                    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">db_ingestor.py → PostgreSQL</div>
+                    <div style="font-size:13px;color:var(--text-primary)">Complete monitoring snapshots</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">sync_db.py → PostgreSQL</div>
                 </div>
             </div>
         </div>
@@ -117,24 +117,10 @@
 
 {% block scripts %}
 <script>
-// Only fetch data when scan is running
+// Retain recorded findings when monitoring stops.
 let alertsLoaded = false;
-CaveOT.onScanState((running) => {
-    if (running) {
-        if (!alertsLoaded) {
-            alertsLoaded = true;
-            loadAlerts();
-            loadAlertStats();
-        }
-    } else {
-        alertsLoaded = false;
-        ['as-total','as-attacks','as-assets'].forEach(id => {
-            document.getElementById(id).textContent = '—';
-        });
-        document.getElementById('alerts-loading').style.display = 'none';
-        document.getElementById('alerts-content').style.display = 'none';
-    }
-});
+loadAlertStats(); loadAlerts();
+CaveOT.onScanState((running,changed)=>{if(running && changed){loadAlertStats(); loadAlerts();}});
 
 async function loadAlertStats() {
     try {
@@ -145,9 +131,14 @@ async function loadAlertStats() {
         // Count distinct assets with at least one alert
         const ar = await fetch('/api/alerts');
         const alerts = await ar.json();
-        const affectedAssets = new Set(alerts.map(a => a.ip)).size;
+        const affectedAssets = d.affected_assets ?? countAlertAssets(alerts);
         document.getElementById('as-assets').textContent = affectedAssets;
     } catch(e) { console.error('Alert stats error:', e); }
+}
+
+function countAlertAssets(alerts) {
+    return new Set(alerts.map(a => a.asset_id != null ? `asset:${a.asset_id}`
+        : a.asset_port != null ? `${a.ip}:${a.asset_port}` : null).filter(Boolean)).size;
 }
 
 function refreshAlerts() {
@@ -188,20 +179,20 @@ async function loadAlerts() {
         <tr>
             <td>${severityLabel(a.severity)}</td>
             <td>
-                <div style="font-size:13px;font-weight:600">${a.alert_signature || '—'}</div>
-                <div style="font-size:11px;color:var(--text-muted)">${a.alert_category || ''}</div>
+                <div style="font-size:13px;font-weight:600">${escapeHtml(a.alert_signature || '—')}</div>
+                <div style="font-size:11px;color:var(--text-muted)">${escapeHtml(a.alert_category || '')}</div>
             </td>
             <td>
-                <div style="font-weight:600">${a.vendor || '—'}</div>
-                <div style="font-size:11px;color:var(--text-muted)">${a.product || ''} · ${a.ip || ''}</div>
+                <div style="font-weight:600">${escapeHtml(a.vendor || '—')}</div>
+                <div style="font-size:11px;color:var(--text-muted)">${escapeHtml(a.product || '')} · ${escapeHtml(a.ip || '')}${a.asset_port != null ? ':'+escapeHtml(String(a.asset_port)) : ''}</div>
             </td>
-            <td><span class="zone-${a.zone}">${a.zone || '—'}</span></td>
+            <td><span class="zone-${escapeHtml(a.zone)}">${escapeHtml(a.zone || '—')}</span></td>
             <td><span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-orange)">${a.protocol || '—'}</span></td>
             <td><span style="font-family:'Share Tech Mono',monospace;font-size:11px">${a.src_ip || '—'}${a.src_port ? ':'+a.src_port : ''}</span></td>
             <td><span style="font-family:'Share Tech Mono',monospace;font-size:11px">${a.dst_ip || '—'}${a.dst_port ? ':'+a.dst_port : ''}</span></td>
             <td>
                 ${a.is_active_attack
-                    ? '<span style="font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--critical);background:rgba(255,51,85,0.15);border:1px solid rgba(255,51,85,0.4);padding:2px 8px;border-radius:2px">ACTIVE</span>'
+                    ? '<span style="font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--critical);background:rgba(255,51,85,0.15);border:1px solid rgba(255,51,85,0.4);padding:2px 8px;border-radius:2px">SIGNATURE MATCH</span>'
                     : '<span style="color:var(--text-muted);font-size:11px">—</span>'}
             </td>
             <td><span style="font-family:'Share Tech Mono',monospace">${a.alert_count || 1}</span></td>
@@ -211,5 +202,6 @@ async function loadAlerts() {
         </tr>
     `).join('');
 }
+setInterval(()=>{if(!document.hidden){loadAlertStats();loadAlerts();}},15000);
 </script>
 {% endblock %}

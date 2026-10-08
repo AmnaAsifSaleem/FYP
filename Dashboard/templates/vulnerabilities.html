@@ -5,6 +5,8 @@
 {% block content %}
 
 <div class="section-heading">Vulnerability Intelligence</div>
+<p style="color:var(--text-muted)">Risk tiers below count CVE associations, including potential matches. A risk score does not confirm applicability.</p>
+<p id="applicability-counts" style="color:var(--text-muted)" aria-live="polite"></p>
 
 <!-- Filter + search bar -->
 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
@@ -51,7 +53,7 @@
 <!-- Table -->
 <div class="panel">
     <div class="panel-header">
-        <span class="panel-title">CVE Database</span>
+        <span class="panel-title">CVE candidates and confirmed applicability</span>
         <span id="vuln-count" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text-muted)">Loading...</span>
     </div>
     <div id="vuln-loading" class="text-center py-5">
@@ -68,7 +70,7 @@
                     <th onclick="sortBy('cvss')" style="cursor:pointer">CVSS ↕</th>
                     <th onclick="sortBy('epss')" style="cursor:pointer">EPSS ↕</th>
                     <th onclick="sortBy('risk_score')" style="cursor:pointer">Risk Score ↕</th>
-                    <th>Tier</th>
+                    <th>Tier</th><th>Applicability</th>
                     <th>CIA</th>
                     <th>Discovered</th>
                     <th>Action</th>
@@ -88,99 +90,74 @@ let sortKey = 'risk_score';
 let sortAsc = false;
 let currentTier = '';
 
-// Only fetch data when scan is running
-let vulnLoaded = false;
-CaveOT.onScanState((running) => {
-    if (running) {
-        if (!vulnLoaded) {
-            vulnLoaded = true;
-            loadSummaryStats();
-            loadVulns('');
-        }
-    } else {
-        vulnLoaded = false;
-        // Clear data so nothing shows under the overlay
-        allVulns = [];
-        ['vs-critical','vs-high','vs-medium','vs-low'].forEach(id => {
-            document.getElementById(id).textContent = '—';
-        });
-        document.getElementById('vuln-loading').style.display = 'none';
-        document.getElementById('vuln-table-wrap').style.display = 'none';
-        document.getElementById('vuln-count').textContent = '';
+// Cards and table use the same response, including stored historical findings.
+loadVulns();
+CaveOT.onScanState((running,changed)=>{if(changed)loadVulns();});
+
+function loadSummaryStats() {
+    for(const tier of ['CRITICAL','HIGH','MEDIUM','LOW']) {
+        document.getElementById('vs-'+tier.toLowerCase()).textContent=allVulns.filter(v=>v.risk_tier===tier).length;
     }
-});
-
-async function loadSummaryStats() {
-    const r = await fetch('/api/summary');
-    const d = await r.json();
-    document.getElementById('vs-critical').textContent = d.critical_cves;
-    document.getElementById('vs-high').textContent = d.high_cves;
-    document.getElementById('vs-medium').textContent = d.medium_cves;
-    document.getElementById('vs-low').textContent = d.low_cves;
+    const confirmed=allVulns.filter(v=>v.applicability==='CONFIRMED').length;
+    const potential=allVulns.filter(v=>v.applicability==='POTENTIAL').length;
+    document.getElementById('applicability-counts').textContent=`${confirmed} confirmed · ${potential} potential · ${allVulns.length-confirmed-potential} unresolved associations`;
 }
 
-async function loadVulns(tier) {
-    document.getElementById('vuln-loading').style.display = 'block';
-    document.getElementById('vuln-table-wrap').style.display = 'none';
-    const url = tier ? `/api/vulnerabilities?tier=${tier}&limit=500` : '/api/vulnerabilities?limit=500';
-    const r = await fetch(url);
-    allVulns = await r.json();
-    document.getElementById('vuln-loading').style.display = 'none';
-    document.getElementById('vuln-table-wrap').style.display = 'block';
-    renderVulns(allVulns);
+async function loadVulns() {
+    const loading=document.getElementById('vuln-loading');
+    const wrap=document.getElementById('vuln-table-wrap');
+    loading.style.display='block';
+    try {
+        const response=await fetch('/api/vulnerabilities?limit=1000');
+        const data=await response.json();
+        if(!response.ok||!Array.isArray(data))throw new Error(data.error||'Unable to load CVE associations');
+        allVulns=data;
+        loadSummaryStats();applyVulnFilters();wrap.style.display='block';
+    } catch(error) {
+        document.getElementById('vuln-count').textContent=`Refresh failed: ${error.message}. Previously loaded findings retained.`;
+    } finally {loading.style.display='none';}
 }
 
-function setTier(tier, btn) {
-    currentTier = tier;
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    loadVulns(tier);
+function setTier(tier,button) {
+    currentTier=tier;
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    button.classList.add('active');applyVulnFilters();
 }
-
-function searchVulns(q) {
-    q = q.toLowerCase();
-    const filtered = allVulns.filter(v =>
-        v.cve_id.toLowerCase().includes(q) ||
-        (v.vendor || '').toLowerCase().includes(q) ||
-        (v.product || '').toLowerCase().includes(q)
-    );
-    renderVulns(filtered);
+function searchVulns(){applyVulnFilters();}
+function sortBy(key){
+    if(sortKey===key)sortAsc=!sortAsc;else{sortKey=key;sortAsc=false;}
+    applyVulnFilters();
 }
-
-function sortBy(key) {
-    if (sortKey === key) sortAsc = !sortAsc;
-    else { sortKey = key; sortAsc = false; }
-    const sorted = [...allVulns].sort((a, b) => {
-        const av = a[key] || 0, bv = b[key] || 0;
-        if (typeof av === 'string') return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
-        return sortAsc ? av - bv : bv - av;
-    });
-    renderVulns(sorted);
+function applyVulnFilters(){
+    const query=document.getElementById('vuln-search').value.toLowerCase();
+    const rows=allVulns.filter(v=>(!currentTier||v.risk_tier===currentTier)&&[v.cve_id,v.vendor,v.product].some(text=>(text||'').toLowerCase().includes(query)));
+    rows.sort((a,b)=>{const av=a[sortKey]??0,bv=b[sortKey]??0;const cmp=typeof av==='string'?av.localeCompare(bv):av-bv;return sortAsc?cmp:-cmp;});
+    renderVulns(rows);
 }
 
 function renderVulns(data) {
-    document.getElementById('vuln-count').textContent = `${data.length} CVEs`;
+    document.getElementById('vuln-count').textContent = `Showing ${data.length} of ${allVulns.length} loaded CVE associations`;
     const tbody = document.getElementById('vuln-tbody');
     if (!data.length) {
-        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-5" style="color:var(--text-muted);font-family:'Share Tech Mono',monospace;font-size:12px">NO VULNERABILITIES FOUND</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11" class="text-center py-5" style="color:var(--text-muted);font-family:'Share Tech Mono',monospace;font-size:12px">NO VULNERABILITIES FOUND</td></tr>`;
         return;
     }
     tbody.innerHTML = data.map(v => `
         <tr>
             <td>
-                <a href="https://nvd.nist.gov/vuln/detail/${v.cve_id}" target="_blank"
+                <a href="https://nvd.nist.gov/vuln/detail/${escapeHtml(v.cve_id)}" target="_blank"
                    style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent-cyan);text-decoration:none"
                    onmouseover="this.style.textDecoration='underline'"
                    onmouseout="this.style.textDecoration='none'">
-                    ${v.cve_id}
+                    ${escapeHtml(v.cve_id)}
                 </a>
                 ${v.kev ? `<span style="margin-left:6px;font-family:'Share Tech Mono',monospace;font-size:9px;font-weight:700;color:var(--accent-red);background:rgba(255,51,85,0.15);border:1px solid rgba(255,51,85,0.4);border-radius:2px;padding:2px 5px" title="CISA Known Exploited Vulnerabilities catalog — actively being exploited in the wild">KEV</span>` : ''}
             </td>
             <td>
-                <div style="font-weight:600;font-size:13px">${v.vendor}</div>
-                <div style="font-size:11px;color:var(--text-muted)">${v.product} · ${v.ip}:${v.port}</div>
+                <div style="font-weight:600;font-size:13px">${escapeHtml(v.vendor)}</div>
+                <div style="font-size:11px;color:var(--text-muted)">${escapeHtml(v.product)} · ${escapeHtml(v.ip)}:${v.port}</div>
             </td>
-            <td><span class="zone-${v.zone}">${v.zone}</span></td>
+            <td><span class="zone-${escapeHtml(v.zone)}">${escapeHtml(v.zone)}</span></td>
             <td>
                 <span style="font-family:'Share Tech Mono',monospace;font-size:13px;font-weight:600;color:${riskColor(v.cvss)}">${v.cvss}</span>
             </td>
@@ -189,25 +166,31 @@ function renderVulns(data) {
                 <div style="font-size:10px;color:var(--text-muted)">exploit prob</div>
             </td>
             <td style="min-width:140px">${riskBar(v.risk_score)}</td>
-            <td>${tierBadge(v.risk_tier)}</td>
+            <td>${tierBadge(v.risk_tier)}</td><td style="min-width:220px;max-width:360px">
+                <div>${escapeHtml(v.applicability||'UNKNOWN')}</div>
+                <details style="margin-top:5px;font-size:11px;color:var(--text-muted)">
+                    <summary style="cursor:pointer;color:var(--accent-cyan)">Product &amp; firmware evidence</summary>
+                    <div style="margin-top:6px;white-space:normal;line-height:1.5">${escapeHtml(v.applicability_evidence||'Applicability evidence is unavailable; verification required.')}</div>
+                </details>
+            </td>
             <td>
                 <span style="font-family:'Share Tech Mono',monospace;font-size:10px">
                     <span style="color:var(--accent-red)">C</span>
                     <span style="color:var(--text-muted)">:</span>
-                    <span>${v.c_impact||0}</span>
+                    <span>${v.c_impact??'Unknown'}</span>
                     <span style="color:var(--accent-orange);margin-left:4px">I</span>
                     <span style="color:var(--text-muted)">:</span>
-                    <span>${v.i_impact||0}</span>
+                    <span>${v.i_impact??'Unknown'}</span>
                     <span style="color:var(--accent-yellow);margin-left:4px">A</span>
                     <span style="color:var(--text-muted)">:</span>
-                    <span>${v.a_impact||0}</span>
+                    <span>${v.a_impact??'Unknown'}</span>
                 </span>
             </td>
             <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);white-space:nowrap">
                 ${v.discovered_at ? v.discovered_at.substring(0,10) : '—'}
             </td>
             <td>
-                ${(v.risk_tier === 'CRITICAL' || v.risk_tier === 'HIGH') ? `
+                ${(v.applicability === 'CONFIRMED' && (v.risk_tier === 'CRITICAL' || v.risk_tier === 'HIGH')) ? `
                 <a href="/remediation" style="font-family:'Share Tech Mono',monospace;font-size:10px;
                    padding:3px 8px;background:rgba(255,51,85,0.08);border:1px solid rgba(255,51,85,0.35);
                    color:var(--accent-red);border-radius:2px;text-decoration:none;white-space:nowrap"
@@ -218,5 +201,6 @@ function renderVulns(data) {
         </tr>
     `).join('');
 }
+setInterval(()=>{if(!document.hidden){loadVulns();}},15000);
 </script>
 {% endblock %}

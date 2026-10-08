@@ -1,18 +1,18 @@
-`# ================================================
+# ================================================
 # CAVE-OT: WASA Rawalpindi Water Treatment Plant
 # Suricata IDS Rules
 # ================================================
 
 # ── Modbus Dosing Pump (Port 502) ────────────────
 alert tcp any any -> any 502 (msg:"WASA Modbus Dosing Pump Connection Detected"; flow:to_server,established; sid:9000001; rev:1;)
-alert tcp any any -> any 502 (msg:"WASA Modbus Dosing Pump Write Attempt"; flow:to_server,established; content:"|00 00 00 00 00 06|"; depth:6; sid:9000002; rev:1;)
-alert tcp any any -> any 502 (msg:"WASA Modbus Dosing Pump High Frequency Polling"; flow:to_server,established; threshold:type both,track by_src,count 10,seconds 5; sid:9000003; rev:1;)
-alert tcp any any -> any 502 (msg:"WASA Modbus DosingPump Rapid Connection Attack"; flow:to_server; threshold:type both,track by_src,count 15,seconds 3; sid:9000004; rev:1;)
+alert tcp-pkt any any -> any 502 (msg:"WASA Modbus Dosing Pump Write Attempt"; flow:to_server,established; byte_test:1,=,6,7; priority:2; sid:9000002; rev:1;)
+alert tcp any any -> any 502 (msg:"WASA Modbus Dosing Pump High Frequency Polling"; flow:to_server,established; dsize:>0; threshold:type both,track by_src,count 10,seconds 5; sid:9000003; rev:1;)
+alert tcp any any -> any 502 (msg:"WASA Modbus DosingPump Rapid Connection Attack"; flow:to_server; flags:S; threshold:type both,track by_src,count 15,seconds 3; priority:1; sid:9000004; rev:1;)
 
 # ── Siemens S7 Filtration PLC (Port 10201) ───────
 alert tcp any any -> any 10201 (msg:"WASA S7 Filtration PLC Connection Detected"; flow:to_server,established; sid:9000005; rev:1;)
-alert tcp any any -> any 10201 (msg:"WASA S7 Filtration PLC High Frequency Polling"; flow:to_server,established; threshold:type both,track by_src,count 10,seconds 5; sid:9000006; rev:1;)
-alert tcp any any -> any 10201 (msg:"WASA S7 Filtration PLC Rapid Connection Attack"; flow:to_server; threshold:type both,track by_src,count 15,seconds 3; sid:9000007; rev:1;)
+alert tcp any any -> any 10201 (msg:"WASA S7 Filtration PLC High Frequency Polling"; flow:to_server,established; dsize:>0; threshold:type both,track by_src,count 10,seconds 5; sid:9000006; rev:1;)
+alert tcp any any -> any 10201 (msg:"WASA S7 Filtration PLC Rapid Connection Attack"; flow:to_server; flags:S; threshold:type both,track by_src,count 15,seconds 3; priority:1; sid:9000007; rev:1;)
 
 # ── BACnet Ventilation Controller (Port 47808) ───
 alert udp any any -> any 47808 (msg:"WASA BACnet Ventilation Packet Detected"; sid:9000008; rev:1;)
@@ -20,27 +20,29 @@ alert udp any any -> any 47808 (msg:"WASA BACnet Ventilation High Frequency"; th
 
 # ── DNP3 Water Level RTU (Port 20000) ────────────
 alert tcp any any -> any 20000 (msg:"WASA DNP3 Water Level RTU Connection Detected"; flow:to_server,established; sid:9000010; rev:1;)
-alert tcp any any -> any 20000 (msg:"WASA DNP3 Water Level RTU High Frequency"; flow:to_server,established; threshold:type both,track by_src,count 10,seconds 5; sid:9000011; rev:1;)
-alert tcp any any -> any 20000 (msg:"WASA DNP3 Water Level RTU Rapid Attack"; flow:to_server; threshold:type both,track by_src,count 15,seconds 3; sid:9000012; rev:1;)
+alert tcp any any -> any 20000 (msg:"WASA DNP3 Water Level RTU High Frequency"; flow:to_server,established; dsize:>0; threshold:type both,track by_src,count 10,seconds 5; sid:9000011; rev:1;)
+alert tcp any any -> any 20000 (msg:"WASA DNP3 Water Level RTU Rapid Attack"; flow:to_server; flags:S; threshold:type both,track by_src,count 15,seconds 3; priority:1; sid:9000012; rev:1;)
 
 # ── Water Quality Sensor Modbus (Port 5020) ──────
 alert tcp any any -> any 5020 (msg:"WASA Modbus Water Quality Sensor Reading"; flow:to_server,established; sid:9000013; rev:1;)
-alert tcp any any -> any 5020 (msg:"WASA Modbus Water Quality High Frequency"; flow:to_server,established; threshold:type both,track by_src,count 10,seconds 5; sid:9000014; rev:1;)
-alert tcp any any -> any 5020 (msg:"WASA Modbus Water Quality Rapid Attack"; flow:to_server; threshold:type both,track by_src,count 15,seconds 3; sid:9000015; rev:1;)
+alert tcp any any -> any 5020 (msg:"WASA Modbus Water Quality High Frequency"; flow:to_server,established; dsize:>0; threshold:type both,track by_src,count 10,seconds 5; sid:9000014; rev:1;)
+alert tcp any any -> any 5020 (msg:"WASA Modbus Water Quality Rapid Attack"; flow:to_server; flags:S; threshold:type both,track by_src,count 15,seconds 3; priority:1; sid:9000015; rev:1;)
 
 # ── IPMI SCADA Server (Port 6230) ────────────────
 alert tcp any any -> any 6230 (msg:"WASA IPMI SCADA Server Access Detected"; flow:to_server,established; sid:9000016; rev:1;)
 alert tcp any any -> any 6230 (msg:"WASA IPMI SCADA Server Brute Force Attempt"; flow:to_server; threshold:type both,track by_src,count 5,seconds 10; sid:9000017; rev:1;)
-alert tcp any any -> any 6230 (msg:"WASA IPMI SCADA Server Rapid Connection Attack"; flow:to_server; threshold:type both,track by_src,count 15,seconds 3; sid:9000018; rev:1;)
+alert tcp any any -> any 6230 (msg:"WASA IPMI SCADA Server Rapid Connection Attack"; flow:to_server; flags:S; threshold:type both,track by_src,count 15,seconds 3; priority:1; sid:9000018; rev:1;)
 
 # ── HMI Web Interface (Port 80) ──────────────────
 alert tcp any any -> any 80 (msg:"WASA HMI Web Interface Access Detected"; flow:to_server,established; sid:9000019; rev:1;)
-alert tcp any any -> any 80 (msg:"WASA HMI Web Interface High Frequency Access"; flow:to_server,established; threshold:type both,track by_src,count 20,seconds 5; sid:9000020; rev:1;)
-alert tcp any any -> any 80 (msg:"WASA HMI Web Interface Rapid Attack"; flow:to_server; threshold:type both,track by_src,count 30,seconds 3; sid:9000021; rev:1;)
+alert tcp any any -> any 80 (msg:"WASA HMI Web Interface High Frequency Access"; flow:to_server,established; dsize:>0; threshold:type both,track by_src,count 20,seconds 5; sid:9000020; rev:1;)
+alert tcp any any -> any 80 (msg:"WASA HMI Web Interface Rapid Attack"; flow:to_server; flags:S; threshold:type both,track by_src,count 30,seconds 3; priority:1; sid:9000021; rev:1;)
 
 # ── Cross Protocol Attack Detection ──────────────
-alert tcp any any -> any 502 (msg:"WASA IT to OT Lateral Movement Modbus"; flow:to_server,established; sid:9000022; rev:1;)
-alert tcp any any -> any 10201 (msg:"WASA IT to OT Lateral Movement S7"; flow:to_server,established; sid:9000023; rev:1;)
-alert tcp any any -> any 20000 (msg:"WASA IT to OT Lateral Movement DNP3"; flow:to_server,established; sid:9000024; rev:1;)
+alert tcp any any -> any 502 (msg:"WASA Configured Modbus Service Connection"; flow:to_server,established; sid:9000022; rev:1;)
+alert tcp any any -> any 10201 (msg:"WASA Configured S7 Service Connection"; flow:to_server,established; sid:9000023; rev:1;)
+alert tcp any any -> any 20000 (msg:"WASA Configured DNP3 Service Connection"; flow:to_server,established; sid:9000024; rev:1;)
 
 
+
+alert tcp-pkt any any -> any 502 (msg:"WASA Modbus Dosing Pump Multiple Register Write Attempt"; flow:to_server,established; byte_test:1,=,16,7; priority:2; sid:9000031; rev:1;)

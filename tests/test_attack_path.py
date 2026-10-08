@@ -28,7 +28,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-ASSETS_DIR = os.path.join(PROJECT_ROOT, "Assets")
+ASSETS_DIR = os.path.join(PROJECT_ROOT, "docker", "shared")
 ASSETS_PATH   = os.path.join(ASSETS_DIR, "assets.json")
 RISK_PATH     = os.path.join(ASSETS_DIR, "risk_scored_results.json")
 SURICATA_PATH = os.path.join(ASSETS_DIR, "suricata_context.json")

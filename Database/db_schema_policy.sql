@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS policy_violations (
 -- Policy rules reference table
 CREATE TABLE IF NOT EXISTS policy_rules (
     id SERIAL PRIMARY KEY,
-    rule_name VARCHAR(100) NOT NULL,
+    rule_name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
     policy_source VARCHAR(100),
     zone VARCHAR(20),
@@ -44,11 +44,11 @@ CREATE TABLE IF NOT EXISTS policy_rules (
 );
 
 -- Indexes for performance
-CREATE INDEX idx_policy_compliance_asset_id ON policy_compliance(asset_id);
-CREATE INDEX idx_policy_compliance_status ON policy_compliance(compliance_status);
-CREATE INDEX idx_policy_compliance_score ON policy_compliance(compliance_score DESC);
-CREATE INDEX idx_policy_violations_compliance_id ON policy_violations(compliance_id);
-CREATE INDEX idx_policy_rules_zone_service ON policy_rules(zone, service);
+CREATE INDEX IF NOT EXISTS idx_policy_compliance_asset_id ON policy_compliance(asset_id);
+CREATE INDEX IF NOT EXISTS idx_policy_compliance_status ON policy_compliance(compliance_status);
+CREATE INDEX IF NOT EXISTS idx_policy_compliance_score ON policy_compliance(compliance_score DESC);
+CREATE INDEX IF NOT EXISTS idx_policy_violations_compliance_id ON policy_violations(compliance_id);
+CREATE INDEX IF NOT EXISTS idx_policy_rules_zone_service ON policy_rules(zone, service);
 
 -- Insert sample policy rules based on NIST SP 800-82r3 and CISA DiD
 INSERT INTO policy_rules (rule_name, description, policy_source, zone, service, encrypted, is_active) VALUES
@@ -58,7 +58,7 @@ INSERT INTO policy_rules (rule_name, description, policy_source, zone, service, 
 ('DMZ Zone Segmentation', 'DMZ must not contain OT protocols', 'NIST SP 800-82r3 §6.2.10', 'DMZ', NULL, NULL, TRUE),
 ('Patch Compliance', 'Devices must be patched within 35 days', 'NERC CIP-007-6 R2', NULL, NULL, NULL, TRUE),
 ('Firmware EOL Check', 'Devices with end-of-life firmware are non-compliant', 'NIST SP 800-82r3 §5.2.5.2', NULL, NULL, NULL, TRUE),
-('High CVSS Alert', 'Devices with CVSS >= 7.0 require immediate attention', 'CISA DiD §2.6.1', NULL, NULL, NULL, TRUE);
+('High CVSS Alert', 'Devices with CVSS >= 7.0 require immediate attention', 'CISA DiD §2.6.1', NULL, NULL, NULL, TRUE) ON CONFLICT DO NOTHING;
 
 -- View for compliance dashboard
 CREATE OR REPLACE VIEW compliance_dashboard AS

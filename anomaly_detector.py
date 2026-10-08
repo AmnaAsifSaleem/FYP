@@ -17,7 +17,9 @@ import numpy as np
 from sklearn.ensemble import IsolationForest
 
 # ── Config ───────────────────────────────────────────────────────────────────
-CAVE_DIR     = "/home/caveot/cave_ot_test"
+from pipeline_paths import ENGINE_FOLDER
+from snapshot_io import atomic_json
+CAVE_DIR     = ENGINE_FOLDER
 ASSETS_FILE  = os.path.join(CAVE_DIR, "assets.json")
 HISTORY_FILE = os.path.join(CAVE_DIR, "anomaly_history.json")
 OUTPUT_FILE  = os.path.join(CAVE_DIR, "anomaly_results.json")
@@ -94,9 +96,7 @@ def run():
         vector = feature_vector(asset)
 
         window = windows.get(key, [])
-        window.append(vector)
-        window = window[-WINDOW_SIZE:]
-        windows[key] = window
+
 
         base = {
             "ip": asset.get("ip"), "port": asset.get("port"),
@@ -105,6 +105,8 @@ def run():
         }
 
         if len(window) < MIN_SAMPLES:
+            window.append(vector)
+            windows[key] = window[-WINDOW_SIZE:]
             streaks[key] = 0
             results.append({
                 **base, "anomaly_score": 0.0, "is_anomalous": False,
@@ -118,13 +120,22 @@ def run():
 
         raw_score  = float(model.decision_function([vector])[0])  # higher = more normal
         is_outlier = bool(model.predict([vector])[0] == -1)
+        # A constant baseline gives IsolationForest no split boundaries: even
+        # a large new spike may score as normal. Use a bounded deviation guard
+        # against the prior baseline, independent of the current sample.
+        mean = X.mean(axis=0)
+        scale = np.maximum(X.std(axis=0), np.maximum(np.abs(mean)*.25, 1.0))
+        deviation = float(np.max(np.abs(np.asarray(vector)-mean)/scale))
+        is_outlier = is_outlier or deviation > 4.0
         # decision_function is roughly centered on 0 (~-0.5..0.5); map that
         # onto a 0-1 "suspicion" score for display/scoring purposes.
-        suspicion = max(0.0, min(1.0, (0.2 - raw_score) / 0.4))
+        suspicion = max(0.0, min(1.0, max(-raw_score*4.0,(deviation-4.0)/8.0))) if is_outlier else 0.0
 
         streaks[key] = streaks.get(key, 0) + 1 if is_outlier else 0
         confirmed = streaks[key] >= STREAK_TO_CONFIRM
 
+        if not is_outlier:
+            windows[key] = (window + [vector])[-WINDOW_SIZE:]
         mean = X.mean(axis=0)
         if is_outlier:
             reason = describe_reason(vector, mean)
@@ -141,8 +152,7 @@ def run():
         })
 
     save_state({"windows": windows, "streaks": streaks})
-    with open(OUTPUT_FILE, "w") as f:
-        json.dump(results, f, indent=2)
+    atomic_json(OUTPUT_FILE, results)
 
     print(f"[+] anomaly_results.json saved -> {len(results)} devices")
     for r in results:

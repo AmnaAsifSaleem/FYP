@@ -3,6 +3,10 @@ import json
 import subprocess
 import sys
 
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 def run_command(cmd):
     """Run a command and return output"""
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
@@ -98,12 +102,13 @@ def test_pipeline():
         print("   ⚠ Some model files missing, CVE mapping may not work")
     
     # Check asset files
-    asset_files = ['Assets/assets.json', 'Assets/model_input.json']
+    asset_files = ['docker/shared/assets.json', 'docker/shared/risk_scored_results.json']
     for file in asset_files:
         if os.path.exists(file):
             print(f"   ✓ {file}")
         else:
             print(f"   ✗ {file} - MISSING")
+            all_exist=False
     
     return all_exist
 
@@ -123,24 +128,22 @@ def main():
         all_passed = False
     
     # Test pipeline
-    test_pipeline()
+    if not test_pipeline():all_passed=False
     
     print("\n" + "=" * 60)
     if all_passed:
         print("✅ PROJECT VERIFICATION PASSED")
         print("\nDashboard is running at: http://localhost:5000")
-        print("\nCurrent Status:")
-        print("- 6 OT/IT assets")
-        print("- 157 total CVEs")
-        print("- 51 Critical CVEs")
-        print("- 63 Medium CVEs")
-        print("- 43 Low CVEs")
-        print("- 0 High CVEs (none found with current scoring)")
+        print("Counts are read from the current database; candidate applicability is shown separately.")
+
     else:
         print("❌ PROJECT VERIFICATION FAILED")
         print("Some tests failed. Check the errors above.")
     
     print("=" * 60)
 
+    return all_passed
+
 if __name__ == "__main__":
-    main()
+    import sys
+    sys.exit(0 if main() else 1)

@@ -24,6 +24,7 @@
 
 services:
   engine:
+    init: true
     build:
       context: ..              # repo root — Dockerfile COPYs real source files
       dockerfile: docker/engine/Dockerfile
@@ -39,6 +40,7 @@ services:
     tty: true   # cave_monitor.py's TUI writes ANSI colour codes; keeps `docker logs` readable
 
   honeypot:
+    init: true
     build: ./honeypot
     container_name: caveot-honeypot
     network_mode: "service:engine"   # share the engine's localhost

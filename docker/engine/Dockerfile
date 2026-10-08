@@ -27,17 +27,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # unmodified rather than needing every call site edited.
 
 # Python deps for the pipeline (TF-IDF CVE matching, attack-path graph, discovery)
-RUN pip3 install --no-cache-dir --break-system-packages \
-        scapy \
-        networkx \
-        numpy \
-        pandas \
-        scikit-learn \
-        joblib
+COPY docker/engine/requirements.txt /tmp/engine-requirements.txt
+COPY docker/engine/verify_wheels.py /tmp/verify_wheels.py
+COPY docker/engine/wheelhouse/ /tmp/wheelhouse/
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+RUN (pip3 download --no-index --only-binary=:all: --find-links=/tmp/wheelhouse -r /tmp/engine-requirements.txt -d /tmp/wheel-download \
+        || pip3 download --timeout=120 --retries=5 --only-binary=:all: --find-links=/tmp/wheelhouse --index-url=${PIP_INDEX_URL} -r /tmp/engine-requirements.txt -d /tmp/wheel-download) \
+    && python3 /tmp/verify_wheels.py /tmp/wheel-download /tmp/wheelhouse/verified-hashes.json \
+    && pip3 install --no-index --find-links=/tmp/wheel-download --break-system-packages -r /tmp/engine-requirements.txt \
+    && rm -rf /tmp/wheel-download /tmp/wheelhouse
 
 # App code lives at the same path the VM used, so no in-code path changes needed
 WORKDIR /home/caveot/cave_ot_test
-COPY cave_monitor.py attack_path.py smart_discover.py cve_discovery.py anomaly_detector.py ./
+COPY cave_monitor.py attack_path.py smart_discover.py cve_discovery.py anomaly_detector.py pipeline_paths.py validation.py contextual_risk.py cve_applicability.py snapshot_io.py ./
 COPY model/ ./model/
 
 # Suricata expects its log dir
@@ -66,6 +68,8 @@ RUN mkdir -p /var/lib/suricata/rules \
 
 # CAVE_OT_DOCKER=1 tells cave_monitor.py's start_containers() there's no
 # per-device container to `docker start` (see that function for the branch).
+RUN suricata -T -c /etc/suricata/suricata.yaml -S /var/lib/suricata/rules/ot-rules.rules
+
 ENV CAVE_OT_DOCKER=1
 
 CMD ["python3", "/home/caveot/cave_ot_test/cave_monitor.py"]

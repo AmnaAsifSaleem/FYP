@@ -11,7 +11,7 @@ DB_CONFIG = {
     "port": 5432,
     "dbname": "cave_ot",
     "user": "postgres",
-    "password": "admin"
+    "password": os.environ.get("CAVE_OT_DB_PASSWORD", "")
 }
 
 SCHEMA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "db_schema_policy.sql")

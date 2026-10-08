@@ -12,16 +12,16 @@ class PolicyCompliancePredictor:
     """
     Predict policy compliance for OT/IT assets with clear explanations
     """
-    
+
     def __init__(self, model_dir=None):
         """
         Initialize predictor with trained model
         """
         if model_dir is None:
             model_dir = os.path.join(os.path.dirname(__file__), 'models')
-        
+
         self.model_dir = model_dir
-        
+
         # Load model and preprocessing objects
         try:
             self.model = joblib.load(os.path.join(model_dir, 'policy_compliance_model.pkl'))
@@ -34,7 +34,7 @@ class PolicyCompliancePredictor:
             self._load_error = str(e)
             print(f"✗ Error loading policy model: {e}")
             print("  Policy compliance predictions will be unavailable until the model is trained.")
-    
+
     def prepare_asset(self, asset_data):
         """
         Prepare a single asset for prediction
@@ -43,7 +43,7 @@ class PolicyCompliancePredictor:
         """
         # Convert to DataFrame
         df = pd.DataFrame([asset_data])
-        
+
         # Intelligent mapping for unknown categories
         category_mapping = {
             'device_type': {
@@ -70,11 +70,11 @@ class PolicyCompliancePredictor:
                 'Schneider Electric': 'Schneider Electric',
             },
             'service': {
-                'BACnet': 'EtherNet/IP',  # BACnet is similar to Ethernet/IP
-                'IPMI':   'SSH',          # IPMI is a management protocol like SSH
+
+
             }
         }
-        
+
         # Encode categorical variables
         for col, encoder in self.label_encoders.items():
             if col in df.columns:
@@ -82,42 +82,29 @@ class PolicyCompliancePredictor:
                 if original_value is None or (isinstance(original_value, float) and pd.isna(original_value)):
                     original_value = 'Unknown'
                 mapped_value = original_value
-                
+
                 # Apply intelligent mapping if available
                 if col in category_mapping and original_value in category_mapping[col]:
                     mapped_value = category_mapping[col][original_value]
                     print(f"Info: Mapped '{original_value}' → '{mapped_value}' for feature '{col}'")
-                
+
                 # Handle unseen categories
                 if mapped_value not in encoder.classes_:
-                    print(f"Warning: Unknown category '{original_value}' for feature '{col}'")
-                    # Find the most similar category based on string similarity
-                    from difflib import get_close_matches
-                    matches = get_close_matches(mapped_value, encoder.classes_, n=1, cutoff=0.3)
-                    if matches:
-                        best_match = matches[0]
-                        print(f"  Using closest match: '{best_match}'")
-                        df[col] = encoder.transform([best_match])[0]
-                    else:
-                        # Use the most frequent category in training data
-                        most_frequent = encoder.classes_[0]  # First class is usually most frequent
-                        print(f"  Using most frequent category: '{most_frequent}'")
-                        df[col] = encoder.transform([most_frequent])[0]
-                else:
-                    df[col] = encoder.transform([mapped_value])[0]
-        
+                    raise ValueError(f"Unsupported category {original_value!r} for {col}; manual review required")
+                df[col] = encoder.transform([mapped_value])[0]
+
         # Scale numerical features
-        numerical_cols = ['port', 'encrypted', 'cvss', 'epss', 'kev', 'c_impact', 
-                         'i_impact', 'a_impact', 'criticality', 'days_since_patch', 
+        numerical_cols = ['port', 'encrypted', 'cvss', 'epss', 'kev', 'c_impact',
+                         'i_impact', 'a_impact', 'criticality', 'days_since_patch',
                          'firmware_eol', 'alert_count']
-        
+
         # Only scale columns that exist
         existing_num_cols = [col for col in numerical_cols if col in df.columns]
         if existing_num_cols:
             df[existing_num_cols] = self.scaler.transform(df[existing_num_cols])
-        
+
         return df
-    
+
     def predict(self, asset_data):
         """
         Predict compliance for a single asset or multiple assets
@@ -132,43 +119,44 @@ class PolicyCompliancePredictor:
         # Convert to DataFrame if dict
         if isinstance(asset_data, dict):
             asset_data = pd.DataFrame([asset_data])
-        
+
         # Prepare assets and keep original features for explanation
         prepared_assets = []
         original_features_list = []
-        
+
         for idx, row in asset_data.iterrows():
             # Keep original features before encoding/scaling
             original_features = row.to_dict()
             original_features_list.append(original_features)
-            
+
             # Prepare asset for prediction
             prepared_asset = self.prepare_asset(original_features)
             prepared_assets.append(prepared_asset)
-        
+
         # Combine all prepared assets
         if len(prepared_assets) > 1:
             X = pd.concat(prepared_assets, ignore_index=True)
         else:
             X = prepared_assets[0]
-        
+
         # Predict
         predictions = self.model.predict(X)
         probabilities = self.model.predict_proba(X)[:, 1]
-        
+
         # Get feature importance for explanation
         feature_importance = self.get_feature_importance()
-        
+
         # Format results
         results = []
         for i, (pred, prob) in enumerate(zip(predictions, probabilities)):
             status = "COMPLIANT" if pred == 1 else "NON_COMPLIANT"
             confidence = prob if pred == 1 else 1 - prob
-            
+            if confidence < .8: status = "NEEDS_REVIEW"
+
             # Get clear explanation for prediction
             original_asset_features = pd.Series(original_features_list[i])
             explanation = self.explain_prediction_clearly(original_asset_features, feature_importance)
-            
+
             results.append({
                 'compliance_status': status,
                 'confidence': round(confidence, 3),
@@ -176,9 +164,9 @@ class PolicyCompliancePredictor:
                 'explanation': explanation,
                 'asset_index': i
             })
-        
+
         return results
-    
+
     def get_feature_importance(self):
         """
         Load feature importance from saved file
@@ -187,7 +175,7 @@ class PolicyCompliancePredictor:
         if os.path.exists(importance_path):
             return pd.read_csv(importance_path)
         return None
-    
+
     def explain_prediction_clearly(self, asset_features, feature_importance):
         """
         Generate CLEAR, actionable explanation for prediction
@@ -195,15 +183,15 @@ class PolicyCompliancePredictor:
         """
         if feature_importance is None:
             return "Model prediction based on security policy patterns."
-        
+
         # Create a dictionary of feature values
         feature_values = {}
         for feature in asset_features.index:
             feature_values[feature] = asset_features[feature]
-        
+
         problematic_factors = []
         positive_factors = []
-        
+
         # 1. CHECK ENCRYPTION STATUS
         if 'encrypted' in feature_values:
             encrypted = feature_values['encrypted']
@@ -211,7 +199,7 @@ class PolicyCompliancePredictor:
                 problematic_factors.append("Communication not encrypted - enable TLS/encryption")
             else:
                 positive_factors.append("Encrypted communication (good practice)")
-        
+
         # 2. CHECK CVSS SCORE
         if 'cvss' in feature_values:
             try:
@@ -224,7 +212,7 @@ class PolicyCompliancePredictor:
                     positive_factors.append(f"Low CVSS score ({cvss:.1f}) - good security posture")
             except:
                 pass
-        
+
         # 3. CHECK EPSS SCORE
         if 'epss' in feature_values:
             try:
@@ -237,7 +225,7 @@ class PolicyCompliancePredictor:
                     positive_factors.append(f"Low exploit probability (EPSS {epss:.3f})")
             except:
                 pass
-        
+
         # 4. CHECK KEV STATUS
         if 'kev' in feature_values:
             kev = feature_values['kev']
@@ -245,7 +233,7 @@ class PolicyCompliancePredictor:
                 problematic_factors.append("Known Exploited Vulnerability detected")
             else:
                 positive_factors.append("No Known Exploited Vulnerabilities")
-        
+
         # 5. CHECK FIRMWARE EOL
         if 'firmware_eol' in feature_values:
             eol = feature_values['firmware_eol']
@@ -253,7 +241,7 @@ class PolicyCompliancePredictor:
                 problematic_factors.append("Firmware end-of-life - plan hardware replacement")
             else:
                 positive_factors.append("Firmware supported by vendor")
-        
+
         # 7. CHECK SERVICE/PROTOCOL SECURITY
         if 'service' in feature_values:
             service = str(feature_values['service'])
@@ -269,7 +257,7 @@ class PolicyCompliancePredictor:
                 'RDP': 'RDP exposed without encryption - enable Network Level Authentication',
                 'SMB': 'SMB exploited in ransomware attacks - disable or restrict access'
             }
-            
+
             secure_services = {
                 'HTTPS': 'HTTPS with valid certificate',
                 'SSH': 'SSH with key-based authentication',
@@ -277,18 +265,18 @@ class PolicyCompliancePredictor:
                 'OPC_UA': 'OPC UA with authentication enabled',
                 'RDP_Encrypted': 'RDP with encryption enabled'
             }
-            
+
             if service in service_explanations:
                 problematic_factors.append(service_explanations[service])
             elif service in secure_services:
                 positive_factors.append(secure_services[service])
-        
+
         # 8. CHECK ZONE COMPLIANCE
         if 'zone' in feature_values:
             zone = str(feature_values['zone'])
             if zone in ['OT', 'SCADA_Zone']:
                 problematic_factors.append(f"OT zone device ({zone}) - requires enhanced security controls")
-        
+
         # 9. CHECK DEVICE CRITICALITY
         if 'criticality' in feature_values:
             try:
@@ -297,7 +285,7 @@ class PolicyCompliancePredictor:
                     problematic_factors.append(f"High criticality device ({criticality:.2f}) - requires enhanced monitoring")
             except:
                 pass
-        
+
         # 10. CHECK ALERT COUNT
         if 'alert_count' in feature_values:
             try:
@@ -308,7 +296,7 @@ class PolicyCompliancePredictor:
                     problematic_factors.append(f"Security alerts detected ({alerts:.0f}) - review logs")
             except:
                 pass
-        
+
         # FORMAT FINAL EXPLANATION
         if problematic_factors:
             # Take top 3 most important problematic factors
@@ -321,12 +309,12 @@ class PolicyCompliancePredictor:
         else:
             # Fallback explanation
             return "Asset assessed against security policies"
-    
+
     # Keep the old method for compatibility
     def explain_prediction(self, asset_features, feature_importance):
         """Legacy method - uses new clear explanation"""
         return self.explain_prediction_clearly(asset_features, feature_importance)
-    
+
     def batch_predict_from_csv(self, csv_path):
         """
         Predict compliance for assets from a CSV file
@@ -334,30 +322,30 @@ class PolicyCompliancePredictor:
         if not os.path.exists(csv_path):
             print(f"✗ CSV file not found: {csv_path}")
             return None
-        
+
         try:
             assets_df = pd.read_csv(csv_path)
             print(f"✓ Loaded {len(assets_df)} assets from {csv_path}")
-            
+
             # Check required columns
             required_cols = ['device_type', 'vendor', 'zone', 'service', 'port']
             missing_cols = [col for col in required_cols if col not in assets_df.columns]
-            
+
             if missing_cols:
                 print(f"✗ Missing required columns: {missing_cols}")
                 return None
-            
+
             # Predict
             results = self.predict(assets_df)
-            
+
             # Add results to dataframe
             for i, result in enumerate(results):
                 for key, value in result.items():
                     if key != 'asset_index':
                         assets_df.loc[i, key] = value
-            
+
             return assets_df
-            
+
         except Exception as e:
             print(f"✗ Error processing CSV: {e}")
             return None
@@ -367,26 +355,26 @@ def test_with_assets_json():
     Test predictor with assets from assets.json
     """
     import json
-    
+
     # Load assets from assets.json
-    assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
+    assets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)),
                               'Assets', 'assets.json')
-    
+
     if not os.path.exists(assets_path):
         print(f"✗ assets.json not found: {assets_path}")
         return None
-    
+
     with open(assets_path, 'r') as f:
         assets = json.load(f)
-    
+
     print(f"✓ Loaded {len(assets)} assets from assets.json")
-    
+
     # Initialize predictor
     predictor = PolicyCompliancePredictor()
-    
+
     # Prepare assets for prediction
     assets_for_prediction = []
-    
+
     for asset in assets:
         # Map asset data to model features
         asset_features = {
@@ -407,17 +395,17 @@ def test_with_assets_json():
             'firmware_eol': 0,       # Default: firmware not EOL
             'alert_count': 0         # Default: no alerts
         }
-        
+
         assets_for_prediction.append(asset_features)
-    
+
     # Predict
     results = predictor.predict(pd.DataFrame(assets_for_prediction))
-    
+
     # Display results
     print("\n" + "=" * 80)
     print("POLICY COMPLIANCE PREDICTIONS WITH CLEAR EXPLANATIONS")
     print("=" * 80)
-    
+
     for i, (asset, result) in enumerate(zip(assets, results)):
         print(f"\nAsset {i+1}: {asset['vendor']} {asset['product']}")
         print(f"  IP: {asset['ip']}:{asset['port']}, Service: {asset['service']}")
@@ -425,21 +413,21 @@ def test_with_assets_json():
         print(f"  Prediction: {result['compliance_status']} (Confidence: {result['confidence']:.3f})")
         print(f"  Compliance Score: {result['compliance_score']:.3f}")
         print(f"  Explanation: {result['explanation']}")
-    
+
     return results
 
 if __name__ == "__main__":
     print("=" * 60)
     print("POLICY COMPLIANCE PREDICTOR (UPDATED EXPLANATIONS)")
     print("=" * 60)
-    
+
     # Test with sample assets
     predictor = PolicyCompliancePredictor()
-    
+
     # Test 1: Single asset
     print("\nTest 1: Single Asset Prediction")
     print("-" * 40)
-    
+
     sample_asset = {
         'device_type': 'PLC',
         'vendor': 'Siemens',
@@ -458,7 +446,7 @@ if __name__ == "__main__":
         'firmware_eol': 0,
         'alert_count': 2
     }
-    
+
     result = predictor.predict(sample_asset)
     print(f"Asset: {sample_asset['device_type']} ({sample_asset['vendor']})")
     print(f"Service: {sample_asset['service']}:{sample_asset['port']} in {sample_asset['zone']}")
@@ -466,13 +454,13 @@ if __name__ == "__main__":
     print(f"Confidence: {result[0]['confidence']:.3f}")
     print(f"Compliance Score: {result[0]['compliance_score']:.3f}")
     print(f"Explanation: {result[0]['explanation']}")
-    
+
     # Test 2: Predict for assets in assets.json
     print("\n\nTest 2: Predicting for assets in assets.json")
     print("-" * 40)
-    
+
     test_with_assets_json()
-    
+
     print("\n" + "=" * 60)
     print("PREDICTOR READY WITH CLEAR EXPLANATIONS")
     print("=" * 60)

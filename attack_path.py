@@ -3,7 +3,7 @@ attack_path.py — Attack Path Analysis for CAVE-OT
 
 Builds a risk-weighted directed graph from the water-treatment plant's 15-device
 OT/ICS communication topology, computes the cheapest (highest-risk) Dijkstra paths
-from internet-facing IT entry points to high-criticality OT targets, and writes
+from configured IT entry points to high-criticality OT targets, and writes
 the results to attack_paths.json for the Windows host to pick up.
 
 Called by cave_monitor.run_discovery() as the final pipeline step. Runs entirely
@@ -479,6 +479,8 @@ def write_json(paths: list, out_path: str, nodes: dict = None) -> None:
             an empty dict so existing callers/tests remain valid.
     """
     payload = {
+        "analysis_type":"POTENTIAL_CONFIGURED_PATH",
+        "assumptions":["Configured testbed topology","Bidirectional reachability assumed for configured pairs","Risk costs are prioritization heuristics, not exploit probabilities"],
         "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
         "total_paths":  len(paths),
         "paths":        paths,

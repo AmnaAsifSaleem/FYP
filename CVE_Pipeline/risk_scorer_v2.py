@@ -94,33 +94,7 @@ def get_risk_tier(score: float):
             return tier, emoji
     return "LOW", "🟢"
 
-def score_cve(cve: dict, asset_criticality: float, cia_lookup: dict,
-              alert_count: int = 0, alert_severity: int = 3) -> tuple:
-    """Returns (risk_score, c, i, a, cia_source)."""
-    cvss   = cve.get("cvss", 0.0)
-    epss   = cve.get("epss", 0.0)
-    kev    = cve.get("kev",  0)
-    cve_id = cve.get("cve_id", "")
-
-    if cve_id in cia_lookup:
-        c, i, a = cia_lookup[cve_id]
-        cia_source = "db"
-    else:
-        c, i, a = cia_fallback(cvss)
-        cia_source = "fallback"
-
-    temporal      = cvss * get_exploit_maturity(epss) * get_remediation_level(kev)
-    cia           = calculate_cia_score(c, i, a)
-    environmental = min(temporal * cia * asset_criticality * 10, 10.0)
-
-    if kev == 1:
-        environmental = min(environmental * 1.10, 10.0)
-
-    suricata_factor = calculate_suricata_factor(alert_count, alert_severity)
-    final = min(environmental + (suricata_factor * 1.5), 10.0)
-
-    return round(final, 1), c, i, a, cia_source
-
+from contextual_risk import score_cve
 
 
 # ---------------------------------------------------------------------------

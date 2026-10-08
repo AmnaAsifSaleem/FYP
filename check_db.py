@@ -1,3 +1,4 @@
+import os
 import psycopg2
 import sys
 
@@ -7,7 +8,7 @@ try:
         host="localhost",
         database="postgres",  # Try default database first
         user="postgres",
-        password="admin",
+        password=os.environ.get("CAVE_OT_DB_PASSWORD", ""),
         port=5432
     )
     print("✓ Connected to PostgreSQL")
@@ -31,4 +32,4 @@ except Exception as e:
     print("  Host: localhost")
     print("  Port: 5432")
     print("  User: postgres")
-    print("  Password: admin")
+    print("  Password: set CAVE_OT_DB_PASSWORD in your environment")

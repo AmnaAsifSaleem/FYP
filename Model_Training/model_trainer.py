@@ -2,7 +2,7 @@
 CAVE-OT Model Trainer
 Trains TF-IDF similarity models in two stages:
 1. General training on all CVEs (206k rows)
-2. OT fine-tuning on ICS-specific CVEs (6k rows)
+2. OT-specific fitting with shared vocabulary on ICS-specific CVEs (6k rows)
 """
 
 import pandas as pd
@@ -22,8 +22,8 @@ def build_corpus(df):
     print(f"Building corpus from {len(df)} CVEs...")
     corpus = []
     for _, row in tqdm(df.iterrows(), total=len(df), desc="Processing"):
-        vendor = str(row['vendor']) * 3  # Higher weight
-        product = str(row['product']) * 2  # Medium weight
+        vendor = ' '.join([str(row['vendor'])] * 3)  # Higher weight
+        product = ' '.join([str(row['product'])] * 2)  # Medium weight
         desc = str(row['description'])
         corpus.append(f'{vendor} {product} {desc}')
     return corpus
@@ -80,8 +80,8 @@ def main():
     joblib.dump(df_full, f'{OUTPUT_FOLDER}/cve_database.pkl')
     print(f"  ✓ Saved general model files")
     
-    # Stage 2: OT fine-tuning
-    print(f"\n[4/5] Stage 2: OT fine-tuning...")
+    # Stage 2: OT-specific fitting with shared vocabulary
+    print(f"\n[4/5] Stage 2: OT-specific fitting with shared vocabulary...")
     ot_vectorizer = TfidfVectorizer(
         analyzer='word',
         ngram_range=(1, 2),

@@ -27,7 +27,10 @@ def load_and_preprocess_data():
     
     # Handle target variable (compliance_status)
     # Convert to binary: COMPLIANT=1, NON_COMPLIANT/NEEDS_REVIEW=0
-    df['target'] = df['compliance_status'].apply(lambda x: 1 if x == 'COMPLIANT' else 0)
+    review_count=int((df['compliance_status']=='NEEDS_REVIEW').sum())
+    print(f'Excluding {review_count} unresolved labels from binary advisory training')
+    df=df[df['compliance_status'].isin(['COMPLIANT','NON_COMPLIANT'])].copy()
+    df['target']=(df['compliance_status']=='COMPLIANT').astype(int)
     
     # Separate features and target
     # Drop columns that won't be used as features
@@ -44,29 +47,19 @@ def load_and_preprocess_data():
     print(f"\nCategorical features: {categorical_cols}")
     print(f"Numerical features: {numerical_cols}")
     
-    # Encode categorical variables
-    print("\nEncoding categorical variables...")
-    label_encoders = {}
+    X_train, X_test, y_train, y_test = train_test_split(features,target,test_size=.2,random_state=42,stratify=target)
+    X_train=X_train.copy();X_test=X_test.copy()
+    label_encoders={}
     for col in categorical_cols:
-        le = LabelEncoder()
-        features[col] = le.fit_transform(features[col])
-        label_encoders[col] = le
-        print(f"  {col}: {len(le.classes_)} unique values")
-    
-    # Scale numerical features
-    print("Scaling numerical features...")
-    scaler = StandardScaler()
-    features[numerical_cols] = scaler.fit_transform(features[numerical_cols])
-    
-    # Split data (80% train, 20% test)
-    print("\nSplitting data into train/test sets...")
-    X_train, X_test, y_train, y_test = train_test_split(
-        features, target, test_size=0.2, random_state=42, stratify=target
-    )
-    
-    print(f"Training set: {X_train.shape}")
-    print(f"Test set: {X_test.shape}")
-    
+        le=LabelEncoder();X_train[col]=le.fit_transform(X_train[col].fillna('Unknown').astype(str))
+        lookup={v:i for i,v in enumerate(le.classes_)}
+        X_test[col]=X_test[col].fillna('Unknown').astype(str).map(lookup).fillna(-1).astype(int)
+        label_encoders[col]=le
+    scaler=StandardScaler()
+    X_train[numerical_cols]=scaler.fit_transform(X_train[numerical_cols])
+    X_test[numerical_cols]=scaler.transform(X_test[numerical_cols])
+
+
     # Save encoders and scaler for later use
     models_dir = os.path.join(os.path.dirname(__file__), 'models')
     os.makedirs(models_dir, exist_ok=True)
@@ -94,7 +87,7 @@ def prepare_single_asset(asset_data, label_encoders, scaler):
             if df[col].iloc[0] not in encoder.classes_:
                 print(f"Warning: Unknown category '{df[col].iloc[0]}' for feature '{col}'")
                 # Use the most common class as default
-                df[col] = encoder.transform([encoder.classes_[0]])[0]
+                raise ValueError(f'Unsupported {col}: manual review required')
             else:
                 df[col] = encoder.transform([df[col].iloc[0]])[0]
     

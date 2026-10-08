@@ -1,6 +1,6 @@
 """
 CAVE-OT Risk Scorer
-Calculates contextual risk scores for CVEs using CVSS v3.1 Environmental Scoring
+Calculates contextual risk scores for CVEs using a custom contextual prioritization formula
 with OT-specific CIA reweighting and Suricata alert integration.
 """
 
@@ -70,37 +70,10 @@ def calculate_suricata_factor(alert_count, alert_severity):
     return min(factor, 1.0)
 
 def calculate_risk_score(cve, device_type, alert_count=0, alert_severity=3):
-    """Calculate final contextual risk score"""
-    # Extract CVE data
-    cvss = cve['cvss']
-    epss = cve['epss']
-    kev = cve['kev']
-    c_impact = cve['c_impact']
-    i_impact = cve['i_impact']
-    a_impact = cve['a_impact']
-    
-    # Step 1: Temporal score
-    temporal = calculate_temporal_score(cvss, epss, kev)
-    
-    # Step 2: OT CIA reweighting
-    cia = calculate_cia_score(c_impact, i_impact, a_impact)
-    
-    # Step 3: Asset criticality
-    asset_crit = ASSET_CRITICALITY.get(device_type, 0.30)
-    
-    # Step 4: Environmental score
-    environmental = temporal * cia * asset_crit * 10
-    environmental = min(environmental, 10.0)
-    
-    # Step 5: KEV bonus
-    if kev == 1:
-        environmental = min(environmental * 1.10, 10.0)
-    
-    # Step 6: Suricata context
-    suricata_factor = calculate_suricata_factor(alert_count, alert_severity)
-    final_score = min(environmental + (suricata_factor * 1.5), 10.0)
-    
-    return round(final_score, 1)
+    from contextual_risk import score_cve
+    lookup = {cve.get('cve_id'): (cve['c_impact'], cve['i_impact'], cve['a_impact'])}
+    return score_cve(cve, ASSET_CRITICALITY.get(device_type,.3),lookup,alert_count,alert_severity)[0]
+
 
 def get_risk_tier(score):
     """Determine risk tier from score"""

@@ -3,7 +3,7 @@
 {% block page_heading %}Remediation Advisor{% endblock %}
 
 {% block content %}
-<div class="section-heading">AI-Powered Remediation Advisor — Groq LLM, gatekeeper-reviewed, human-approved. Nothing here is ever auto-applied.</div>
+<div class="section-heading">Remediation review — confirmed applicability, preserved evidence, safety checks, and analyst decisions. No device changes are applied.</div>
 
 <div class="row g-3 mb-4">
     <div class="col-6 col-xl-3">
@@ -102,28 +102,8 @@ let rmPollTimer = null;
 let rmLoaded = false;
 
 // Only fetch data when scan is running
-CaveOT.onScanState((running) => {
-    if (running) {
-        if (!rmLoaded) {
-            rmLoaded = true;
-            loadAll();
-            checkGenerationStatus();
-        }
-    } else {
-        rmLoaded = false;
-        // Clear data so nothing shows under the overlay
-        ['rm-total','rm-pending','rm-approved','rm-blocked'].forEach(id => {
-            document.getElementById(id).textContent = '—';
-        });
-        document.getElementById('rm-blocked-sub').textContent = '— blocked by gatekeeper';
-        document.getElementById('rm-rejected-sub').textContent = '— rejected';
-        document.getElementById('rm-rec-loading').style.display = 'none';
-        document.getElementById('rm-rec-wrap').style.display = 'none';
-        document.getElementById('rm-candidates-loading').style.display = 'none';
-        document.getElementById('rm-candidates-wrap').style.display = 'none';
-        if (rmPollTimer) { clearInterval(rmPollTimer); rmPollTimer = null; }
-    }
-});
+loadAll();
+CaveOT.onScanState((running,changed)=>{if(running && changed){loadAll();}});
 function loadAll() { loadRecommendations(); loadCandidates(); }
 
 function verdictBadge(v) {
@@ -178,7 +158,8 @@ async function loadRecommendations() {
             return;
         }
 
-        rmRecs = data;
+        const selectedAsset=new URLSearchParams(window.location.search).get('asset_id');
+        rmRecs=selectedAsset?data.filter(rec=>String(rec.asset_id)===selectedAsset):data;
         document.getElementById('rm-rec-loading').style.display = 'none';
         document.getElementById('rm-rec-wrap').style.display = 'block';
         document.getElementById('rm-rec-count').textContent = rmRecs.length + ' recommendations';
@@ -197,7 +178,7 @@ async function loadRecommendations() {
 
         const tbody = document.getElementById('rm-rec-tbody');
         if (!rmRecs.length) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4" style="color:var(--text-muted);font-family:'Share Tech Mono',monospace;font-size:12px">NO RECOMMENDATIONS YET — generate one from the candidates below</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4" style="color:var(--text-muted);font-family:'Share Tech Mono',monospace;font-size:12px">No recommendations yet. Confirm CVE applicability before generation; policy actions are available in the evidence review.</td></tr>`;
             return;
         }
         tbody.innerHTML = rmRecs.map(rec => renderRow(rec)).join('');
@@ -214,7 +195,8 @@ async function loadRecommendations() {
 function renderRow(rec) {
     const short = (rec.recommendation || '').length > 110 ? rec.recommendation.slice(0, 110) + '…' : rec.recommendation;
     const decided = rec.status !== 'PENDING';
-    const decisionCell = decided
+    const historical=!rec.context_fingerprint;
+    const decisionCell = historical ? '<span style="color:var(--accent-orange)">Historical — revalidation required</span>' : decided
         ? `<span style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted)">${rec.decided_at ? rec.decided_at.substring(0,16) : ''}</span>`
         : `<div class="d-flex gap-1">
              <button class="btn-ot-green" style="padding:4px 8px;font-size:10px" onclick="decide(${rec.id},'approve',this)">APPROVE</button>
@@ -224,20 +206,20 @@ function renderRow(rec) {
     return `
         <tr>
             <td onclick="toggleDetail(${rec.id})" style="cursor:pointer">
-                <div style="font-weight:600">${rec.vendor} ${rec.product}</div>
-                <div style="font-size:11px;color:var(--text-muted)">${rec.ip}:${rec.port} · <span class="zone-${rec.zone}">${rec.zone}</span></div>
+                <div style="font-weight:600">${escapeHtml(rec.vendor)} ${escapeHtml(rec.product)}</div>
+                <div style="font-size:11px;color:var(--text-muted)">${escapeHtml(rec.ip)}:${rec.port} · <span class="zone-${escapeHtml(rec.zone)}">${escapeHtml(rec.zone)}</span></div>
             </td>
             <td onclick="toggleDetail(${rec.id})" style="cursor:pointer">
-                <a href="https://nvd.nist.gov/vuln/detail/${rec.cve_id}" target="_blank" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-cyan);text-decoration:none">${rec.cve_id}</a>
+                <a href="https://nvd.nist.gov/vuln/detail/${escapeHtml(rec.cve_id)}" target="_blank" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-cyan);text-decoration:none">${escapeHtml(rec.cve_id)}</a>
                 <div style="font-size:10px;color:var(--text-muted)">${rec.risk_tier_at_generation} · risk ${Number(rec.risk_score_at_generation).toFixed(1)}</div>
             </td>
-            <td onclick="toggleDetail(${rec.id})" style="cursor:pointer;font-size:12px;max-width:320px;white-space:normal">${short}</td>
+            <td onclick="toggleDetail(${rec.id})" style="cursor:pointer;font-size:12px;max-width:320px;white-space:normal">${escapeHtml(short)}</td>
             <td>${rec.requires_maintenance_window
                 ? '<span style="color:var(--accent-orange);font-size:11px"><i class="bi bi-exclamation-triangle"></i> required</span>'
                 : '<span style="color:var(--text-muted);font-size:11px">not required</span>'}</td>
             <td onclick="toggleDetail(${rec.id})" style="cursor:pointer;max-width:220px">
                 ${verdictBadge(rec.gatekeeper_verdict)}
-                <div style="font-size:10px;color:var(--text-muted);white-space:normal;margin-top:4px">${gatekeeperReasonShort(rec)}</div>
+                <div style="font-size:10px;color:var(--text-muted);white-space:normal;margin-top:4px">${escapeHtml(gatekeeperReasonShort(rec))}</div>
             </td>
             <td>${statusBadge(rec.status)}</td>
             <td>${decisionCell}</td>
@@ -257,13 +239,13 @@ function renderDetail(rec) {
 
     return `
     <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-green);letter-spacing:1px;margin-bottom:4px">FULL RECOMMENDATION</div>
-    <div style="font-size:13px;color:var(--text-primary);margin-bottom:16px;padding:10px;background:rgba(0,255,136,0.04);border-left:3px solid var(--accent-green)">${rec.recommendation || '—'}</div>
+    <div style="font-size:13px;color:var(--text-primary);margin-bottom:16px;padding:10px;background:rgba(0,255,136,0.04);border-left:3px solid var(--accent-green)">${escapeHtml(rec.recommendation || '—')}</div>
     <div class="row g-3">
         <div class="col-12 col-lg-6">
             <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-cyan);letter-spacing:1px;margin-bottom:4px">RATIONALE</div>
-            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">${rec.rationale || '—'}</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">${escapeHtml(rec.rationale || '—')}</div>
             <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-orange);letter-spacing:1px;margin-bottom:4px">OT SAFETY NOTE</div>
-            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">${rec.ot_safety_note || '—'}</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">${escapeHtml(rec.ot_safety_note || '—')}</div>
             <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:1px;margin-bottom:4px">REFERENCES</div>
             ${ctx.length ? ctx.map(c => `<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">• ${c.topic ? c.topic : c}</div>`).join('') : '<div style="font-size:11px;color:var(--text-muted)">none</div>'}
         </div>
@@ -275,7 +257,7 @@ function renderDetail(rec) {
             <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:1px;margin:10px 0 4px">ML COMPLIANCE SIGNAL (informational only)</div>
             <div style="font-size:12px;color:var(--text-secondary)">${mlSignal ? mlSignal.compliance_status + ' (score ' + Number(mlSignal.compliance_score).toFixed(2) + ')' : 'no policy_compliance record for this asset'}</div>
             <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:1px;margin:10px 0 4px">MODEL</div>
-            <div style="font-size:11px;color:var(--text-muted)">${rec.llm_model || '—'} · confidence ${rec.llm_confidence != null ? (rec.llm_confidence*100).toFixed(0)+'%' : '—'}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${rec.llm_model || '—'} · model self-reported confidence ${rec.llm_confidence != null ? (rec.llm_confidence*100).toFixed(0)+'%' : '—'}</div>
         </div>
     </div>`;
 }
@@ -303,24 +285,27 @@ async function loadCandidates() {
     document.getElementById('rm-candidates-wrap').style.display = 'none';
     try {
         const r = await fetch('/api/remediation/candidates');
-        const candidates = await r.json();
+        let candidates = await r.json();
+        if(!r.ok||!Array.isArray(candidates))throw new Error(candidates.error||'Candidates unavailable');
+        const selectedAsset=new URLSearchParams(window.location.search).get('asset_id');
+        if(selectedAsset)candidates=candidates.filter(c=>String(c.asset_id)===selectedAsset);
         document.getElementById('rm-candidates-loading').style.display = 'none';
         document.getElementById('rm-candidates-wrap').style.display = 'block';
         document.getElementById('rm-candidates-count').textContent = candidates.length + ' candidates';
         const tbody = document.getElementById('rm-candidates-tbody');
         if (!candidates.length) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4" style="color:var(--accent-green);font-family:'Share Tech Mono',monospace;font-size:12px">ALL CRITICAL/HIGH DEVICES HAVE A CURRENT RECOMMENDATION</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4" style="color:var(--accent-green);font-family:'Share Tech Mono',monospace;font-size:12px">No new confirmed high/critical CVEs are eligible. Review applicability and existing recommendations.</td></tr>`;
             return;
         }
         tbody.innerHTML = candidates.map(c => `
             <tr>
-                <td><div style="font-weight:600">${c.vendor} ${c.product}</div><div style="font-size:11px;color:var(--text-muted)">${c.ip}:${c.port}</div></td>
-                <td><span class="zone-${c.zone}">${c.zone}</span></td>
-                <td><span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-cyan)">${c.cve_id}</span></td>
+                <td><div style="font-weight:600">${escapeHtml(c.vendor)} ${escapeHtml(c.product)}</div><div style="font-size:11px;color:var(--text-muted)">${escapeHtml(c.ip)}:${c.port}</div></td>
+                <td><span class="zone-${escapeHtml(c.zone)}">${escapeHtml(c.zone)}</span></td>
+                <td><span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-cyan)">${escapeHtml(c.cve_id)}</span></td>
                 <td>${c.cvss}</td>
                 <td>${Number(c.risk_score).toFixed(1)}</td>
                 <td>${tierBadge(c.risk_tier)}</td>
-                <td><button class="btn-ot" style="padding:4px 10px;font-size:10px" onclick="generateOne(${c.asset_id}, '${c.cve_id}', this)">GENERATE</button></td>
+                <td><button class="btn-ot" style="padding:4px 10px;font-size:10px" onclick="generateOne(${c.asset_id}, '${escapeHtml(c.cve_id)}', this)">GENERATE</button></td>
             </tr>`).join('');
     } catch (e) {
         console.error('Candidates error:', e);
@@ -392,5 +377,6 @@ async function checkGenerationStatus() {
         }
     } catch(e) { /* ignore */ }
 }
+setInterval(()=>{if(!document.hidden){loadAll();}},15000);
 </script>
 {% endblock %}

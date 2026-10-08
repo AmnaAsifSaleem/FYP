@@ -1,3 +1,26 @@
+# Historical advisory model evaluation — not current compliance evidence
+
+The 95.50% accuracy and 98.63% AUC below are historical results and cannot be reproduced from the original `Datasets/policy_dataset.csv`, which is absent from this checkout. The current preprocessor does split before fitting categorical encoders and the scaler, so the earlier concern that this current code fits preprocessing before the holdout split was incorrect. That code inspection does not establish which dataset or preprocessing version produced the saved model or historical metrics.
+
+## Current revalidation (October 2026)
+
+A fresh run using the available `vm_extra/policy_dataset_v2.csv` and the hyperparameters in `policy_model_trainer.py` produced the following result:
+
+| Check | Result |
+|---|---|
+| Dataset | 3,000 rows; 1,410 `NON_COMPLIANT`, 1,410 `COMPLIANT`, 180 `NEEDS_REVIEW` |
+| Binary training/evaluation population | 2,820 rows; `NEEDS_REVIEW` excluded as in the trainer |
+| Split | Stratified 80/20, seed 42: 2,256 train / 564 test |
+| Preprocessing | Encoders and scaler fit on training rows only; test rows transformed using those fitted objects |
+| Exact duplicate feature rows | 0 |
+| Accuracy | 100.00% (564/564) |
+| ROC-AUC | 1.0000 |
+| Confusion matrix | `[[282, 0], [0, 282]]` (actual rows, predicted columns) |
+
+This verifies that the current training procedure can achieve a clean held-out result on the currently available dataset. It does **not** reproduce or validate the historical 95.50%/98.63% claims: the available v2 data has a different class distribution from the historical report, and its labels are generated from deterministic policy rules and curated scenarios in `vm_extra/dataset_fixer.py`. The perfect score therefore demonstrates consistency with that synthetic labeling process, not real-world generalization.
+
+The saved `policy_compliance_model.pkl` has no dataset/split provenance. Its serialized scikit-learn version is 1.8.0, while the available evaluation interpreter is 1.6.1; loading it emits `InconsistentVersionWarning`, so the fresh run above deliberately retrained a model rather than treating inference from that pickle as a reliable revalidation. The historical results remain unverified. Also, `policy_model_trainer_improved.py` fits the scaler on all training rows before cross-validation, so its CV folds are not fully preprocessing-isolated; this does not affect the separate holdout split.
+
 # Policy Compliance Model — Evaluation Report
 
 **Model:** Random Forest Classifier  

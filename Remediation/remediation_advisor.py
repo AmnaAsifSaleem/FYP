@@ -5,9 +5,9 @@ Generates structured remediation recommendations for OT/ICS assets.
 
 Flow:
   1. Build a rich, asset-specific prompt with full context
-  2. Call Groq API (qwen/qwen3.8-27b — fast, free)
+  2. Call the configured Groq API model
   3. Parse structured JSON response
-  4. Return (RemediationOutput, []) to caller
+  4. Return recommendation, retrieved evidence, and model identity to caller
 """
 
 import os
@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 # ── Config ────────────────────────────────────────────────────────────────────
 GROQ_API_URL  = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL    = "qwen/qwen3.8-27b"
+GROQ_MODEL    = os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b")
 GROQ_API_KEY  = os.environ.get("GROQ_API_KEY", "")  # set via environment variable
 _MODEL_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "model")
 # ─────────────────────────────────────────────────────────────────────────────
@@ -115,13 +115,26 @@ CVE:
 {policy_ctx}
 
 Provide a specific remediation for {asset['vendor']} {asset['product']} firmware {asset.get('firmware') or 'unknown'} with {cve['cve_id']}.
-Name any specific patch, version, or vendor advisory if you know it."""
+Only name patches, versions, and advisories explicitly supported by the provided evidence. If absent, instruct the analyst to verify the vendor advisory; do not invent details."""
 
 
 # ── Groq client ───────────────────────────────────────────────────────────────
+def _get_api_key():
+    """Also read current user settings when CMD predates key configuration."""
+    value=os.environ.get('GROQ_API_KEY') or GROQ_API_KEY
+    if not value and os.name=='nt':
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,'Environment') as registry:
+                value=winreg.QueryValueEx(registry,'GROQ_API_KEY')[0]
+        except FileNotFoundError:pass
+    return value
+
+
 def _call_groq(user_prompt: str, attempts: int = 3) -> str:
     """Call Groq API and return the assistant message content."""
-    api_key = os.environ.get("GROQ_API_KEY") or GROQ_API_KEY
+    api_key = _get_api_key()
+    if not api_key:raise ValueError("GROQ_API_KEY is required for remediation generation")
 
     payload = json.dumps({
         "model":       GROQ_MODEL,
@@ -177,7 +190,6 @@ def _parse_response(content: str) -> RemediationOutput:
     text = content.strip()
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
     text = re.sub(r'```(?:json)?\s*', '', text).replace('```', '').strip()
-    text = re.sub(r'//[^\n]*', '', text)
 
     start = text.find("{")
     end   = text.rfind("}") + 1
@@ -191,12 +203,15 @@ def _parse_response(content: str) -> RemediationOutput:
 def generate_remediation(asset, cve, attack_path_info=None, policy_context=None, attempts=3):
     """
     Generate a remediation recommendation for an asset/CVE pair.
-    Returns (RemediationOutput, [])
+    Returns (RemediationOutput, evidence, model identity)
     """
     prompt  = _build_prompt(asset, cve, attack_path_info, policy_context)
     content = _call_groq(prompt, attempts=attempts)
     result  = _parse_response(content)
-    return result, []
+    context=[{"source":f"https://nvd.nist.gov/vuln/detail/{cve['cve_id']}","text":cve.get('description') or get_cve_description(cve['cve_id']),"type":"local_cve_corpus"}]
+    allowed={cve['cve_id'],context[0]['source']}
+    result.references=[reference for reference in result.references if reference in allowed]
+    return result, context, GROQ_MODEL
 
 
 # ── Smoke test ────────────────────────────────────────────────────────────────
@@ -220,6 +235,6 @@ if __name__ == "__main__":
     print(f"CVE  : {sample_cve['cve_id']} CVSS={sample_cve['cvss']}")
     print("\nCalling Groq...")
 
-    result, _ = generate_remediation(sample_asset, sample_cve)
+    result, _, _ = generate_remediation(sample_asset, sample_cve)
     print("\nRESULT:")
     print(result.model_dump_json(indent=2))

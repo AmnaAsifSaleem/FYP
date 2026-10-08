@@ -55,7 +55,8 @@ def _mentions_encryption_or_segmentation(text: str) -> bool:
 
 def _rule_matches(rule: dict, asset: dict, cve: dict) -> bool:
     if rule["rule_name"] in _NON_EVALUABLE_RULES:
-        return False
+        field='days_since_patch' if rule['rule_name']=='Patch Compliance' else 'firmware_eol'
+        if asset.get(field) is None:return False
     if rule.get("zone") and rule["zone"] != asset.get("zone"):
         return False
     if rule.get("service") and rule["service"] != asset.get("service"):
@@ -64,9 +65,9 @@ def _rule_matches(rule: dict, asset: dict, cve: dict) -> bool:
         return False
     if rule.get("device_type") and rule["device_type"] != asset.get("device_type"):
         return False
-    if rule.get("cvss_threshold") is not None and cve.get("cvss", 0.0) < rule["cvss_threshold"]:
+    if rule.get("cvss_threshold") is not None and (cve.get("cvss") or 0.0) < rule["cvss_threshold"]:
         return False
-    if rule.get("epss_threshold") is not None and cve.get("epss", 0.0) < rule["epss_threshold"]:
+    if rule.get("epss_threshold") is not None and (cve.get("epss") or 0.0) < rule["epss_threshold"]:
         return False
     return True
 
@@ -120,7 +121,7 @@ def check(asset: dict, cve: dict, recommendation, attack_path_info: dict | None,
         }
 
     # ── Hard gate 2: high-criticality OT asset must flag a maintenance window ──
-    if asset.get("zone") == "OT" and asset.get("criticality", 0) > 0.9 and not requires_window:
+    if asset.get("zone") == "OT" and asset.get("criticality", 0) >= 0 and not requires_window:
         return {
             "verdict": "BLOCK",
             "reasons": [f"Criticality {asset.get('criticality', 0):.2f} OT asset — "
@@ -133,6 +134,16 @@ def check(asset: dict, cve: dict, recommendation, attack_path_info: dict | None,
     # ── Soft rule checks ─────────────────────────────────────────────────
     reasons, matched = [], []
     verdict = "ALLOW"
+    if getattr(recommendation,'confidence',1)<.8:
+        verdict='NEEDS_REVIEW';reasons.append('Recommendation confidence below review threshold.')
+    if not policy_rules:
+        verdict='NEEDS_REVIEW';reasons.append('No active plant rules loaded.')
+    for rule in policy_rules:
+        if rule.get('rule_name') in _NON_EVALUABLE_RULES and asset.get('days_since_patch' if rule.get('rule_name')=='Patch Compliance' else 'firmware_eol') is None:
+            verdict='NEEDS_REVIEW';reasons.append(rule['rule_name']+': upstream evidence must be verified.')
+        elif rule.get('rule_name') not in {'OT Zone Encryption','IT Zone HTTPS Only','High CVSS Alert','SCADA Zone Protocol Restriction','DMZ Zone Segmentation','IT Zone OT Protocol Restriction','Patch Compliance','Firmware EOL Check'}:
+            verdict='NEEDS_REVIEW';reasons.append('Unsupported plant rule: '+str(rule.get('rule_name')))
+
 
     for rule in policy_rules:
         if not _rule_matches(rule, asset, cve):
@@ -140,13 +151,18 @@ def check(asset: dict, cve: dict, recommendation, attack_path_info: dict | None,
         matched.append(rule["rule_name"])
 
         if rule["rule_name"] in ("OT Zone Encryption", "IT Zone HTTPS Only"):
-            if not _mentions_encryption_or_segmentation(rec_text):
+            if asset.get('encrypted') is None:
+                reasons.append('Transport encryption evidence is missing; analyst verification required.')
+                verdict='NEEDS_REVIEW'
+            elif asset.get('encrypted') is False and not _mentions_encryption_or_segmentation(rec_text):
                 reasons.append(f"{rule['rule_name']}: recommendation doesn't address "
                                 "encryption/segmentation for this zone/service.")
                 verdict = "NEEDS_REVIEW"
 
         if rule["rule_name"] == "High CVSS Alert":
             reasons.append(f"High CVSS Alert rule matched (CVSS {cve.get('cvss')}).")
+        if rule['rule_name']=='IT Zone OT Protocol Restriction' and (asset.get('service') or '').casefold() in {'modbus','s7comm','dnp3','bacnet'}:
+            verdict='NEEDS_REVIEW';reasons.append('Plant IT-zone protocol restriction requires reviewed segmentation changes.')
 
     # ── Attack-path amplifier (informational escalation, never a blocker) ──
     if attack_path_info and attack_path_info.get("is_target"):

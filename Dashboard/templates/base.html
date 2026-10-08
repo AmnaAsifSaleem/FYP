@@ -475,6 +475,7 @@
 
         .status-ACTIVE   { color: var(--accent-green); }
         .status-INACTIVE { color: var(--text-muted); }
+        .status-NOT_MONITORED { color: var(--text-muted); }
 
         .zone-OT { color: var(--accent-orange); font-family: 'Share Tech Mono', monospace; font-size: 11px; }
         .zone-IT { color: var(--accent-cyan);   font-family: 'Share Tech Mono', monospace; font-size: 11px; }
@@ -841,8 +842,10 @@
 
     <!-- Page content -->
     <div class="page-content">
+        <div id="data-state-banner" role="status" style="padding:12px 16px;margin-bottom:16px;border:1px solid var(--border);color:var(--text-muted)">Checking monitoring state…</div>
         {% block content %}{% endblock %}
-        <div id="scan-offline-overlay" class="scan-offline-overlay visible">
+        <div id="scan-control-error" role="alert" hidden style="padding:12px;color:var(--accent-red);white-space:pre-wrap;overflow-wrap:anywhere"></div>
+        <div id="scan-offline-overlay" class="scan-offline-overlay" style="display:none">
             <i class="bi bi-power offline-icon"></i>
             <div class="offline-title">SYSTEM OFFLINE</div>
             <div class="offline-sub">Start passive scan mode above to begin live monitoring</div>
@@ -856,11 +859,12 @@
 <script src="/static/chart.min.js"></script>
 
 <script>
+    function escapeHtml(value) {return String(value ?? '').replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));}
     // Live clock
     function updateClock() {
         const now = new Date();
         document.getElementById('topbar-clock').textContent =
-            now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+            new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Karachi',dateStyle:'medium',timeStyle:'medium'}).format(now) + ' PKT';
     }
     updateClock();
     setInterval(updateClock, 1000);
@@ -886,6 +890,8 @@
         window.CaveOT._notifyScanState = function(running) {
             const changed = known !== null && known !== running;
             known = running;
+            const banner=document.getElementById('data-state-banner');
+            if(banner)banner.textContent=running?'Monitoring is running. Findings refresh as complete scan cycles arrive.':'HISTORICAL DATA — scanning is stopped. These are saved findings; device availability is not monitored.';
             const overlay = document.getElementById('scan-offline-overlay');
             if (overlay) {
                 if (!running) {
@@ -902,12 +908,12 @@
                     dot.style.background  = 'var(--accent-green)';
                     dot.style.boxShadow   = '0 0 8px var(--accent-green)';
                     text.style.color      = 'var(--accent-green)';
-                    text.textContent      = 'SYSTEM ONLINE';
+                    text.textContent      = 'LIVE MONITORING';
                 } else {
                     dot.style.background  = 'var(--accent-red)';
                     dot.style.boxShadow   = '0 0 8px var(--accent-red)';
                     text.style.color      = 'var(--accent-red)';
-                    text.textContent      = 'SYSTEM OFFLINE';
+                    text.textContent      = 'SCAN STOPPED — STORED RESULTS';
                 }
             }
             listeners.forEach(fn => fn(running, changed));
@@ -936,54 +942,63 @@
         window.CaveOT._notifyScanState(running);
     }
 
+    let scanStatusPending = false;
     async function refreshScanStatus() {
+        if (scanStatusPending) return null;
+        scanStatusPending = true;
         try {
             const resp = await fetch('/api/scan/status');
             const data = await resp.json();
-            if (!scanBusy) renderScanState(data.running);
-            return data.running;
+            if (!resp.ok) throw new Error(data.message || data.error || 'Unable to read monitoring status');
+            const btn = document.getElementById('scan-toggle-btn');
+            scanBusy = !!data.busy;
+            btn.disabled = scanBusy;
+            window.CaveOT._notifyScanState(!!data.running);
+            if (data.busy) renderScanState(data.running, data.state === 'STOPPING' ? 'STOPPING...' : 'BUILDING / STARTING...');
+            else if (data.error) renderScanState(data.running, 'FAILED — CLICK TO RETRY');
+            else renderScanState(!!data.running);
+            btn.title = data.error || data.message || '';
+            const errorBox = document.getElementById('scan-control-error');
+            errorBox.hidden = !data.error;
+            errorBox.textContent = data.error ? 'Monitoring: ' + data.error : '';
+            return data;
         } catch (e) {
-            if (!scanBusy) renderScanState(false, 'STATUS UNKNOWN');
+            scanBusy = false;
+            const btn = document.getElementById('scan-toggle-btn');
+            btn.disabled = false;
+            btn.title = e.message;
+            renderScanState(false, 'STATUS UNKNOWN — RETRY');
             return null;
-        }
+        } finally { scanStatusPending = false; }
     }
 
     async function toggleScan() {
         if (scanBusy) return;
         const btn = document.getElementById('scan-toggle-btn');
-        const running = await refreshScanStatus();
         scanBusy = true;
         btn.disabled = true;
         try {
-            if (running) {
-                renderScanState(null, 'STOPPING...');
-                await fetch('/api/scan/stop', { method: 'POST' });
-                // container teardown is near-instant
-                setTimeout(async () => { await refreshScanStatus(); scanBusy = false; btn.disabled = false; }, 3000);
-            } else {
-                renderScanState(null, 'STARTING... (opens Docker Desktop if needed, up to ~3 min)');
-                await fetch('/api/scan/start', { method: 'POST' });
-                // Docker Desktop cold start + build can take a while; poll until containers report running
-                const deadline = Date.now() + 240000;
-                const poll = setInterval(async () => {
-                    const nowRunning = await refreshScanStatus();
-                    if (nowRunning || Date.now() > deadline) {
-                        clearInterval(poll);
-                        scanBusy = false;
-                        btn.disabled = false;
-                        if (!nowRunning) renderScanState(false, 'START FAILED — CHECK LOGS');
-                    }
-                }, 4000);
-            }
+            const statusResponse = await fetch('/api/scan/status');
+            const status = await statusResponse.json();
+            if (!statusResponse.ok) throw new Error('Unable to read monitoring status');
+            if (status.busy) { await refreshScanStatus(); return; }
+            renderScanState(status.running, status.running ? 'STOPPING...' : 'BUILDING / STARTING...');
+            const resp = await fetch(status.running ? '/api/scan/stop' : '/api/scan/start', {method: 'POST'});
+            const data = await resp.json();
+            if (!resp.ok || !data.success) throw new Error(data.message || 'Monitoring request failed');
+            await refreshScanStatus();
         } catch (e) {
             scanBusy = false;
             btn.disabled = false;
-            renderScanState(false, 'ERROR — RETRY');
+            renderScanState(false, 'FAILED — CLICK TO RETRY');
+            const errorBox = document.getElementById('scan-control-error');
+            errorBox.hidden = false;
+            errorBox.textContent = 'Monitoring: ' + e.message;
         }
     }
 
     refreshScanStatus();
-    setInterval(() => { if (!scanBusy) refreshScanStatus(); }, 8000);
+    setInterval(refreshScanStatus, 4000);
 
     // Chart.js global defaults for dark theme
     Chart.defaults.color = '#5a8a9f';

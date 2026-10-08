@@ -4,7 +4,7 @@
 
 {% block content %}
 
-<div id="dash-live" style="display:none">
+<div id="dash-live">
 
 <!-- Stat cards row -->
 <div class="row g-3 mb-4" id="stat-cards">
@@ -18,7 +18,7 @@
     </div>
     <div class="col-6 col-xl-3">
         <div class="stat-card red">
-            <div class="stat-label">Critical CVEs</div>
+            <div class="stat-label">Critical CVE Associations</div>
             <div class="stat-value red" id="s-critical">—</div>
             <div class="stat-sub" id="s-high">— high severity</div>
             <i class="bi bi-shield-fill-exclamation stat-icon" style="color:var(--accent-red)"></i>
@@ -26,7 +26,7 @@
     </div>
     <div class="col-6 col-xl-3">
         <div class="stat-card orange">
-            <div class="stat-label">Total CVEs</div>
+            <div class="stat-label">CVE Associations</div>
             <div class="stat-value orange" id="s-total-cves">—</div>
             <div class="stat-sub" id="s-kev"></div>
             <div id="s-kev-list" style="margin-top:4px"></div>
@@ -35,7 +35,7 @@
     </div>
     <div class="col-6 col-xl-3">
         <div class="stat-card green">
-            <div class="stat-label">Active Alerts</div>
+            <div class="stat-label">Recorded Alerts</div>
             <div class="stat-value green" id="s-alerts">—</div>
             <div class="stat-sub" id="s-attacks">— active attacks</div>
             <i class="bi bi-bell-fill stat-icon" style="color:var(--accent-green)"></i>
@@ -118,7 +118,7 @@
 <!-- Top critical CVEs table -->
 <div class="panel">
     <div class="panel-header">
-        <span class="panel-title">Top Critical Vulnerabilities</span>
+        <span class="panel-title">Highest Risk CVE Associations</span>
         <a href="/vulnerabilities" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-cyan);text-decoration:none">VIEW ALL →</a>
     </div>
     <div class="panel-body" style="padding:0">
@@ -136,6 +136,7 @@
                         <th>EPSS</th>
                         <th>Risk Score</th>
                         <th>Tier</th>
+                        <th>Applicability</th>
                     </tr>
                 </thead>
                 <tbody id="top-cves-body"></tbody>
@@ -170,48 +171,34 @@ function countUp(el, target, durationMs = 800) {
     requestAnimationFrame(tick);
 }
 
-CaveOT.onScanState(async (running, changed) => {
-    if (running) {
-        CaveOT.hideOverlay();
-        document.getElementById('dash-live').style.display = 'block';
-        await Promise.all([loadSummary(), loadCharts(), loadTopCVEs()]);
-        if (!dashRefreshTimer) {
-            dashRefreshTimer = setInterval(() => { loadSummary(); }, 30000);
-        }
-    } else {
-        document.getElementById('dash-live').style.display = 'none';
-        if (dashRefreshTimer) {
-            clearInterval(dashRefreshTimer);
-            dashRefreshTimer = null;
-        }
-    }
-});
+loadSummary(); loadCharts(); loadTopCVEs();
+CaveOT.onScanState((running,changed)=>{if(changed){loadSummary();loadCharts();loadTopCVEs();}});
 
 async function loadSummary() {
     const r = await fetch('/api/summary');
     const d = await r.json();
     countUp(document.getElementById('s-total-assets'), d.total_assets);
-    document.getElementById('s-active-assets').textContent = `${d.active_assets} active`;
+    document.getElementById('s-active-assets').textContent = d.monitoring_running ? `${d.active_assets} recently observed` : 'Not monitored — saved scan';
     countUp(document.getElementById('s-critical'), d.critical_cves);
-    document.getElementById('s-high').textContent = `${d.high_cves} high severity`;
+    document.getElementById('s-high').textContent = `${d.high_cves} high · candidates included`;
     countUp(document.getElementById('s-total-cves'), d.total_cves);
     const kevEl = document.getElementById('s-kev');
     kevEl.textContent = d.kev_cves > 0
-        ? `${d.kev_cves} actively exploited (KEV)` : 'none in CISA KEV';
+        ? `${d.confirmed_cves} confirmed · ${d.potential_cves} potential · ${d.kev_cves} KEV associations` : `${d.confirmed_cves} confirmed · ${d.potential_cves} potential`;
     kevEl.style.color = d.kev_cves > 0 ? 'var(--accent-red)' : '';
     kevEl.style.fontWeight = d.kev_cves > 0 ? '700' : '';
 
     const kevListEl = document.getElementById('s-kev-list');
     kevListEl.innerHTML = (d.kev_details || []).map(k => `
         <div style="font-family:'Share Tech Mono',monospace;font-size:10px;margin-top:2px">
-            <a href="https://nvd.nist.gov/vuln/detail/${k.cve_id}" target="_blank"
-               style="color:var(--accent-red);text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${k.cve_id}</a>
-            <span style="color:var(--text-muted)"> — ${k.vendor} ${k.product} (${k.ip})</span>
+            <a href="https://nvd.nist.gov/vuln/detail/${escapeHtml(k.cve_id)}" target="_blank"
+               style="color:var(--accent-red);text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${escapeHtml(k.cve_id)}</a>
+            <span style="color:var(--text-muted)"> — ${escapeHtml(k.vendor)} ${escapeHtml(k.product)} (${escapeHtml(k.ip)})</span>
         </div>
     `).join('');
 
     countUp(document.getElementById('s-alerts'), d.total_alerts);
-    document.getElementById('s-attacks').textContent = `${d.active_attacks} active attacks`;
+    document.getElementById('s-attacks').textContent = `${d.active_attacks} ${d.monitoring_running ? 'recorded attack events' : 'saved attack events'}`;
     countUp(document.getElementById('s-anomalous'), d.anomalous_assets);
 }
 
@@ -316,7 +303,7 @@ async function loadCharts() {
     new Chart(document.getElementById('chart-zone'), {
         type: 'radar',
         data: {
-            labels: ['Total CVEs', 'Avg Risk', 'Critical CVEs'],
+            labels: ['CVE Associations', 'Avg Risk', 'Critical Associations'],
             datasets: zoneData.map((z, i) => ({
                 label: z.zone,
                 data: [
@@ -357,18 +344,20 @@ async function loadTopCVEs() {
     }
     tbody.innerHTML = data.map(v => `
         <tr>
-            <td><span style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent-cyan)">${v.cve_id}</span></td>
+            <td><span style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent-cyan)">${escapeHtml(v.cve_id)}</span></td>
             <td>
-                <div style="font-weight:600">${v.vendor}</div>
-                <div style="font-size:11px;color:var(--text-muted)">${v.product} · ${v.ip}</div>
+                <div style="font-weight:600">${escapeHtml(v.vendor)}</div>
+                <div style="font-size:11px;color:var(--text-muted)">${escapeHtml(v.product)} · ${escapeHtml(v.ip)}</div>
             </td>
-            <td><span class="zone-${v.zone}">${v.zone}</span></td>
+            <td><span class="zone-${escapeHtml(v.zone)}">${escapeHtml(v.zone)}</span></td>
             <td><span style="font-family:'Share Tech Mono',monospace;color:${riskColor(v.cvss)}">${v.cvss}</span></td>
             <td><span style="font-family:'Share Tech Mono',monospace;font-size:12px">${(v.epss * 100).toFixed(2)}%</span></td>
             <td>${riskBar(v.risk_score)}</td>
             <td>${tierBadge(v.risk_tier)}</td>
+            <td title="${escapeHtml(v.applicability_evidence||'')}">${escapeHtml(v.applicability||'UNKNOWN')}</td>
         </tr>
     `).join('');
 }
+setInterval(()=>{if(!document.hidden){loadSummary();loadCharts();loadTopCVEs();}},15000);
 </script>
 {% endblock %}

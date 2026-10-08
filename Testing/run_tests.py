@@ -54,8 +54,8 @@ def run_unit_tests():
 def run_integration_tests():
     """Run integration tests"""
     print_header("RUNNING INTEGRATION TESTS")
-    print("\nIntegration tests coming soon...")
-    return True  # Placeholder
+    result=subprocess.run([sys.executable,'-m','pytest',str(Path(__file__).parent.parent/'tests'),'-q','-p','no:cacheprovider'])
+    return result.returncode==0
 
 def run_data_validation():
     """Run data validation tests"""
@@ -85,7 +85,9 @@ def run_data_validation():
                 text=True
             )
             
-            if result.returncode == 0:
+            if result.returncode == 77:
+                print("  [SKIPPED: optional data unavailable]")
+            elif result.returncode == 0:
                 print("  [PASSED]")
             else:
                 print("  [FAILED]")
@@ -100,53 +102,11 @@ def run_data_validation():
     return all_passed
 
 def generate_test_report():
-    """Generate test report"""
-    print_header("GENERATING TEST REPORT")
-    
-    reports_dir = Path(__file__).parent / "reports"
-    
-    # Check for existing reports
-    report_files = list(reports_dir.glob("*.md"))
-    
-    if report_files:
-        print("\nAvailable Test Reports:")
-        for report in report_files:
-            print(f"  • {report.name}")
-        
-        # Show latest report
-        latest_report = max(report_files, key=os.path.getctime)
-        print(f"\nLatest report: {latest_report.name}")
-        
-        # Show summary
-        try:
-            with open(latest_report, 'r') as f:
-                content = f.read()
-                
-            # Extract key information
-            if "RISK SCORING FORMULA IS CORRECT AND RELIABLE" in content:
-                print("  Status: [PASSED]")
-            elif "FAILED" in content:
-                print("  Status: [FAILED]")
-            
-            # Extract test counts
-            import re
-            test_match = re.search(r"Total: (\d+) tests.*Passed: (\d+)", content, re.DOTALL)
-            if test_match:
-                total = test_match.group(1)
-                passed = test_match.group(2)
-                print(f"  Tests: {passed}/{total} passed")
-            
-            # Extract real data info
-            data_match = re.search(r"Total CVEs: (\d+)", content)
-            if data_match:
-                print(f"  CVEs Validated: {data_match.group(1)}")
-                
-        except Exception as e:
-            print(f"  Error reading report: {e}")
-    else:
-        print("\nNo test reports found.")
-    
+    print_header("HISTORICAL REPORTS")
+    for report in (Path(__file__).parent/'reports').glob('*.md'):
+        print(f'Archived report: {report.name} (not evidence for this execution)')
     return True
+
 
 def main():
     """Main test runner"""
@@ -192,7 +152,7 @@ def main():
         
         all_passed = all(results.values())
         if all_passed:
-            print("\n[SUCCESS] ALL TESTS PASSED!")
+            print("\n[SUCCESS] Executed checks passed; see explicit skips above for unavailable optional data.")
         else:
             print("\n[WARNING] SOME TESTS FAILED - Review the output above")
         

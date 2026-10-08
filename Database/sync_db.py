@@ -1,3 +1,7 @@
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Policy_Compliance'))
+from pipeline_paths import DB_CONFIG
 """
 CAVE-OT Database Sync
 =====================
@@ -10,7 +14,10 @@ Run:
     python Database/sync_db.py --wipe      # clear all data first
 """
 
-import json, os, sys, argparse, random
+import json, os, sys, argparse
+from validation import validate_asset, validate_cve
+from pipeline_paths import RUNTIME_FOLDER
+from snapshot_io import load_cycle
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -24,59 +31,15 @@ BASE     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # the repo root so it works regardless of where the repo is cloned). If
 # you're running the VM instead of Docker, point this at your VMware shared
 # folder path instead.
-_SHARED  = os.path.join(BASE, "docker", "shared")
+_SHARED = RUNTIME_FOLDER
 ASSETS   = os.path.join(_SHARED, "assets.json")
 SCORED   = os.path.join(_SHARED, "risk_scored_results.json")
 SURICATA = os.path.join(_SHARED, "suricata_context.json")
 ANOMALY  = os.path.join(_SHARED, "anomaly_results.json")
 ATTACK_PATHS = os.path.join(_SHARED, "attack_paths.json")
 
-# ── Permanent assets that exist only on Windows (not discovered by VM) ────────
-# These are always merged into the DB regardless of what the VM sends.
-PERMANENT_ASSETS = [
-    {
-        "ip": "127.0.0.1", "port": 443, "service": "HTTPS",
-        "device_type": "Historian", "zone": "IT",
-        "vendor": "OSIsoft", "product": "PI Server", "firmware": "3.4.400",
-        "description": "Plant data historian - secure web interface",
-        "criticality": 0.60, "packet_count": 8, "status": "ACTIVE",
-        "cves": [
-            {"cve_id": "CVE-2021-27976", "cvss": 3.5, "epss": 0.00089, "kev": 0},
-            {"cve_id": "CVE-2020-10610", "cvss": 4.6, "epss": 0.00234, "kev": 0},
-            {"cve_id": "CVE-2018-17889", "cvss": 3.1, "epss": 0.00045, "kev": 0},
-            {"cve_id": "CVE-2019-18244", "cvss": 3.7, "epss": 0.00112, "kev": 0},
-            {"cve_id": "CVE-2021-27975", "cvss": 4.3, "epss": 0.00067, "kev": 0},
-        ]
-    },
-    {
-        "ip": "127.0.0.1", "port": 2222, "service": "SSH",
-        "device_type": "Engineering_WS", "zone": "IT",
-        "vendor": "Cisco", "product": "ASA Firewall", "firmware": "9.16.4",
-        "description": "Network DMZ gateway - SSH management",
-        "criticality": 0.55, "packet_count": 5, "status": "ACTIVE",
-        "cves": [
-            {"cve_id": "CVE-2020-3187",  "cvss": 3.1, "epss": 0.00156, "kev": 0},
-            {"cve_id": "CVE-2021-1585",  "cvss": 2.8, "epss": 0.00034, "kev": 0},
-            {"cve_id": "CVE-2020-3452",  "cvss": 3.5, "epss": 0.00289, "kev": 0},
-            {"cve_id": "CVE-2021-34704", "cvss": 4.0, "epss": 0.00078, "kev": 0},
-            {"cve_id": "CVE-2022-20713", "cvss": 3.3, "epss": 0.00045, "kev": 0},
-        ]
-    },
-]
+PERMANENT_ASSETS = []
 
-# ── Compliance-demo padding asset ──────────────────────────────────────────
-# Not a real device — pads the compliant-asset count for the Policy
-# Compliance page. Lives at port 0, which nothing in MASTER_ASSETS or live
-# assets.json ever references, so it's never touched by normal discovery.
-# Its status is randomized on every sync instead of being pinned, so it
-# reads as a device that occasionally drops rather than a dead row.
-PADDING_ASSET = {
-    "ip": "127.0.0.1", "port": 0, "service": None,
-    "device_type": "Engineering_WS", "zone": "OT",
-    "vendor": "Cisco", "product": "ASA Firewall",
-    "firmware": None, "description": None,
-    "criticality": 0.55, "packet_count": 0,
-}
 
 # ── Master asset list — all known assets in the plant ─────────────────────────
 # Assets in this list but absent from the VM's assets.json are inserted as INACTIVE.
@@ -96,14 +59,11 @@ MASTER_ASSETS = [
     {"ip":"127.0.0.1","port":20000,"service":"DNP3",   "device_type":"Water_Level_RTU",        "zone":"OT","vendor":"General Electric",  "product":"D20MX",       "firmware":"8.0",     "description":"Remote water level RTU",                   "criticality":0.90},
     {"ip":"127.0.0.1","port":47808,"service":"BACnet", "device_type":"Ventilation_Controller",  "zone":"OT","vendor":"Siemens",          "product":"APOGEE PXC",  "firmware":"1.2",     "description":"Chemical storage ventilation",              "criticality":0.55},
     {"ip":"127.0.0.1","port":10203,"service":"S7comm", "device_type":"Reservoir_Level_PLC",     "zone":"OT","vendor":"Siemens",          "product":"S7-300",      "firmware":"V2.6",    "description":"Reservoir level monitoring PLC",            "criticality":0.91},
-    {"ip":"127.0.0.1","port":443,  "service":"HTTPS",  "device_type":"Historian",              "zone":"IT","vendor":"OSIsoft",          "product":"PI Server",   "firmware":"3.4.400", "description":"Plant data historian - secure web interface","criticality":0.60},
+    {"ip":"127.0.0.1","port":443,  "service":"HTTP",  "device_type":"Historian",              "zone":"IT","vendor":"OSIsoft",          "product":"PI Server",   "firmware":"3.4.400", "description":"Plant data historian - secure web interface","criticality":0.60},
     {"ip":"127.0.0.1","port":2222, "service":"SSH",    "device_type":"Engineering_WS",         "zone":"IT","vendor":"Cisco",            "product":"ASA Firewall","firmware":"9.16.4",  "description":"Network DMZ gateway - SSH management",     "criticality":0.55},
 ]
 
-DB_CONFIG = {
-    "host": "localhost", "port": 5432,
-    "dbname": "cave_ot", "user": "postgres", "password": "admin"
-}
+
 
 # ── risk tier thresholds ──────────────────────────────────────────────────────
 def tier(score):
@@ -121,7 +81,7 @@ def build_risk_index(scored_path):
         data = json.load(f)
     idx = {}
     for dev in data.get("devices", []):
-        dt = dev.get("device_type", "")
+        dt = (dev.get("ip"),dev.get("port"))
         idx[dt] = {}
         for cve in dev.get("cves", []):
             idx[dt][cve["cve_id"]] = {
@@ -135,20 +95,21 @@ def build_risk_index(scored_path):
 
 
 def upsert_asset(cur, device):
+    device = validate_asset(device)
     # respect status from JSON — defaults to ACTIVE if not set
     asset_status = device.get("status", "ACTIVE").upper()
     cur.execute("""
         INSERT INTO assets
             (ip, port, service, device_type, zone, vendor, product,
-             firmware, description, criticality, packet_count,
+             firmware, description, criticality, packet_count, identity_source, identity_verified, encrypted, days_since_patch, firmware_eol,
              anomaly_score, is_anomalous, anomaly_reason,
              first_seen, last_seen, status)
         VALUES
             (%(ip)s, %(port)s, %(service)s, %(device_type)s, %(zone)s,
              %(vendor)s, %(product)s, %(firmware)s, %(description)s,
-             %(criticality)s, %(packet_count)s,
+             %(criticality)s, %(packet_count)s, %(identity_source)s, %(identity_verified)s, %(encrypted)s, %(days_since_patch)s, %(firmware_eol)s,
              %(anomaly_score)s, %(is_anomalous)s, %(anomaly_reason)s,
-             NOW(), NOW(), %(status)s)
+             NOW(), CASE WHEN %(status)s='ACTIVE' THEN NOW() ELSE NULL END, %(status)s)
         ON CONFLICT (ip, port) DO UPDATE SET
             service        = EXCLUDED.service,
             device_type    = EXCLUDED.device_type,
@@ -159,10 +120,12 @@ def upsert_asset(cur, device):
             description    = EXCLUDED.description,
             criticality    = EXCLUDED.criticality,
             packet_count   = EXCLUDED.packet_count,
+            identity_source=EXCLUDED.identity_source,identity_verified=EXCLUDED.identity_verified,
+            encrypted=EXCLUDED.encrypted,days_since_patch=EXCLUDED.days_since_patch,firmware_eol=EXCLUDED.firmware_eol,
             anomaly_score  = EXCLUDED.anomaly_score,
             is_anomalous   = EXCLUDED.is_anomalous,
             anomaly_reason = EXCLUDED.anomaly_reason,
-            last_seen      = NOW(),
+            last_seen      = CASE WHEN EXCLUDED.status='ACTIVE' THEN NOW() ELSE assets.last_seen END,
             status         = CASE
                 WHEN assets.status = 'INACTIVE' AND EXCLUDED.status = 'INACTIVE'
                     THEN 'INACTIVE'
@@ -181,6 +144,8 @@ def upsert_asset(cur, device):
         "description":    device.get("description"),
         "criticality":    device.get("criticality", 0.5),
         "packet_count":   device.get("packet_count", 0),
+        "identity_source":device.get("identity_source","configured_inventory"),"identity_verified":device.get("identity_verified",False),
+        "encrypted":device.get("encrypted"),"days_since_patch":device.get("days_since_patch"),"firmware_eol":device.get("firmware_eol"),
         "anomaly_score":  device.get("anomaly_score", 0.0),
         "is_anomalous":   bool(device.get("is_anomalous", False)),
         "anomaly_reason": device.get("anomaly_reason"),
@@ -190,20 +155,22 @@ def upsert_asset(cur, device):
 
 
 def upsert_cve(cur, asset_id, cve, risk_info):
+    cve = validate_cve(cve)
     score = risk_info.get("risk_score", 0.0)
     cur.execute("""
         INSERT INTO vulnerabilities
             (asset_id, cve_id, cvss, epss, kev,
              c_impact, i_impact, a_impact,
-             risk_score, risk_tier, discovered_at, updated_at)
+             risk_score, risk_tier, applicability, applicability_evidence, similarity, score_version, discovered_at, updated_at)
         VALUES
             (%(asset_id)s, %(cve_id)s, %(cvss)s, %(epss)s, %(kev)s,
-             %(c)s, %(i)s, %(a)s, %(score)s, %(tier)s, NOW(), NOW())
+             %(c)s, %(i)s, %(a)s, %(score)s, %(tier)s, %(applicability)s, %(evidence)s, %(similarity)s, %(score_version)s, NOW(), NOW())
         ON CONFLICT (asset_id, cve_id) DO UPDATE SET
             cvss=EXCLUDED.cvss, epss=EXCLUDED.epss, kev=EXCLUDED.kev,
             c_impact=EXCLUDED.c_impact, i_impact=EXCLUDED.i_impact,
             a_impact=EXCLUDED.a_impact, risk_score=EXCLUDED.risk_score,
-            risk_tier=EXCLUDED.risk_tier, updated_at=NOW();
+            risk_tier=EXCLUDED.risk_tier,applicability=EXCLUDED.applicability,applicability_evidence=EXCLUDED.applicability_evidence,
+            similarity=EXCLUDED.similarity,score_version=EXCLUDED.score_version, updated_at=NOW();
     """, {
         "asset_id": asset_id, "cve_id": cve["cve_id"],
         "cvss": cve.get("cvss", 0.0), "epss": cve.get("epss", 0.0),
@@ -212,6 +179,8 @@ def upsert_cve(cur, asset_id, cve, risk_info):
         "i": risk_info.get("i_impact", 0.0),
         "a": risk_info.get("a_impact", 0.0),
         "score": score, "tier": risk_info.get("risk_tier", tier(score)),
+        "applicability":cve.get("applicability","UNKNOWN"),"evidence":cve.get("applicability_evidence","Legacy association; unverified"),
+        "similarity":cve.get("similarity",0),"score_version":cve.get("score_version","legacy"),
     })
 
 
@@ -237,8 +206,15 @@ def upsert_alerts(cur, asset_id, suricata_entry):
 
     from collections import Counter
     counts = Counter(messages)
+    event_map={}
+    for event in suricata_entry.get('alert_events',[]):
+        signature=event.get('message')
+        if signature not in event_map or event.get('severity',3)<event_map[signature].get('severity',3):event_map[signature]=event
 
     for signature, count in counts.items():
+        event=event_map.get(signature,{})
+        signature_severity=event.get('severity',severity)
+        signature_attack=signature_severity==1
         cur.execute("""
             INSERT INTO alerts
                 (asset_id, alert_signature, alert_category, severity,
@@ -246,7 +222,7 @@ def upsert_alerts(cur, asset_id, suricata_entry):
                  is_active_attack, alert_count, detected_at)
             VALUES
                 (%(asset_id)s, %(sig)s, %(cat)s, %(sev)s,
-                 %(protocol)s, '127.0.0.1', '127.0.0.1', %(port)s,
+                 %(protocol)s, %(src_ip)s, %(dst_ip)s, %(port)s,
                  %(attack)s, %(count)s, NOW())
             ON CONFLICT (asset_id, alert_signature) DO UPDATE SET
                 severity         = EXCLUDED.severity,
@@ -259,13 +235,15 @@ def upsert_alerts(cur, asset_id, suricata_entry):
             "asset_id": asset_id,
             "sig":      signature,
             "cat":      "IDS Alert",
-            "sev":      severity if severity > 0 else 3,
+            "sev":      signature_severity if signature_severity > 0 else 3,
+            "src_ip":event.get("src_ip"),"dst_ip":event.get("dest_ip",suricata_entry.get("ip")),
             "protocol": protocol,
             "port":     suricata_entry.get("port", 0),
-            "attack":   is_attacked,
+            "attack":   signature_attack,
             "count":    count,
         })
     return len(counts)
+    cve = validate_cve(cve)
     score = risk_info.get("risk_score", 0.0)
     cur.execute("""
         INSERT INTO vulnerabilities
@@ -414,56 +392,21 @@ def sync_attack_paths(cur):
 
 
 def _run_policy_check(db_config):
-    """Run policy compliance for all assets and save to DB."""
-    try:
-        import sys as _sys, os as _os, pandas as _pd
-        _sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), 'Policy_Compliance'))
-        import psycopg2 as _pg
-        from policy_predictor import PolicyCompliancePredictor
-        predictor = PolicyCompliancePredictor()
-        conn = _pg.connect(**db_config)
-        cur = conn.cursor()
-        cur.execute('SELECT id, device_type, vendor, zone, service, port, criticality FROM assets ORDER BY id')
-        checked = 0
-        for aid, dt, vendor, zone, svc, port, crit in cur.fetchall():
-            cur.execute('SELECT AVG(cvss),AVG(epss),AVG(c_impact),AVG(i_impact),AVG(a_impact),COUNT(*) FROM vulnerabilities WHERE asset_id=%s',(aid,))
-            cv = cur.fetchone(); has_cv = cv[5] > 0
-            enc = 1 if svc in ('HTTPS','SSH') else 0
-            features = {
-                'device_type': dt or 'Unknown', 'vendor': vendor or 'Unknown',
-                'zone': zone or 'OT', 'service': svc or 'Unknown',
-                'port': int(port or 0), 'encrypted': enc,
-                'cvss': float(cv[0] or 0) if has_cv else 0.0,
-                'epss': float(cv[1] or 0) if has_cv else 0.0,
-                'kev': 0,
-                'c_impact': float(cv[2] or 0) if has_cv else 0.0,
-                'i_impact': float(cv[3] or 0) if has_cv else 0.0,
-                'a_impact': float(cv[4] or 0) if has_cv else 0.0,
-                'criticality': float(crit or 0.5),
-                'days_since_patch': 30, 'firmware_eol': 0, 'alert_count': 0
-            }
-            res = predictor.predict(_pd.DataFrame([features]))[0]
-            cur.execute('''
-                INSERT INTO policy_compliance
-                    (asset_id,compliance_status,compliance_score,confidence,explanation,key_factors)
-                VALUES (%s,%s,%s,%s,%s,'{}')
-                ON CONFLICT (asset_id) DO UPDATE SET
-                    compliance_status=EXCLUDED.compliance_status,
-                    compliance_score=EXCLUDED.compliance_score,
-                    confidence=EXCLUDED.confidence,
-                    explanation=EXCLUDED.explanation,
-                    checked_at=NOW()
-            ''', (aid, res['compliance_status'], float(res['compliance_score']),
-                  float(res['confidence']), res['explanation']))
-            checked += 1
-        conn.commit()
-        conn.close()
-        print(f"  Policy check: {checked} assets checked")
-    except Exception as e:
-        print(f"  Policy check failed: {e}")
+    import psycopg2
+    from policy_service import run_checks
+    with psycopg2.connect(**db_config) as conn:
+        results=run_checks(conn)
+    print(f"  Deterministic policy check: {len(results)} assets checked")
 
 
 def sync(wipe=False, reset_status=False):
+    global ASSETS,SCORED,SURICATA,ANOMALY,ATTACK_PATHS
+    manifest,payload=load_cycle(_SHARED)
+    for asset in payload['assets.json']:validate_asset(asset)
+    for entry in payload['risk_scored_results.json'].get('devices',[]):
+        for cve in entry.get('cves',[]):validate_cve(cve)
+    cycle=os.path.join(_SHARED,'cycles',manifest['cycle_id'])
+    ASSETS,SCORED,SURICATA,ANOMALY,ATTACK_PATHS=[os.path.join(cycle,n) for n in ('assets.json','risk_scored_results.json','suricata_context.json','anomaly_results.json','attack_paths.json')]
     import psycopg2
     conn = psycopg2.connect(**DB_CONFIG)
 
@@ -488,23 +431,7 @@ def sync(wipe=False, reset_status=False):
     with open(ASSETS, encoding='utf-8-sig') as f:
         assets_list = json.load(f)
 
-    if not assets_list:
-        print("assets.json is empty — VM pipeline not ready yet, adding permanent assets only")
-        import psycopg2
-        conn = psycopg2.connect(**DB_CONFIG)
-        cur = conn.cursor()
-        for pa in PERMANENT_ASSETS:
-            asset_id = upsert_asset(cur, pa)
-            for cve in pa.get("cves", []):
-                upsert_cve(cur, asset_id, cve, {"risk_score":0.0,"risk_tier":"LOW","c_impact":0.0,"i_impact":0.0,"a_impact":0.0})
-            print(f"  OK {pa['vendor']} {pa['product']} [permanent]")
-        ap_paths, ap_nodes = sync_attack_paths(cur)
-        if ap_paths or ap_nodes:
-            print(f"  Attack paths synced: {ap_paths} paths, {ap_nodes} nodes")
-        conn.commit()
-        conn.close()
-        _run_policy_check(DB_CONFIG)
-        return
+
 
     # load risk_scored_results.json — CVEs + risk scores keyed by device_type
     risk_idx = build_risk_index(SCORED)
@@ -517,7 +444,7 @@ def sync(wipe=False, reset_status=False):
         with open(SCORED) as f:
             scored_data = json.load(f)
         for dev in scored_data.get("devices", []):
-            cve_by_type[dev.get("device_type", "")] = dev.get("cves", [])
+            cve_by_type[(dev.get("ip"),dev.get("port"))] = dev.get("cves", [])
 
     # load suricata_context.json — alerts per device keyed by port
     suricata_by_port = {}
@@ -525,7 +452,7 @@ def sync(wipe=False, reset_status=False):
         with open(SURICATA) as f:
             suricata_list = json.load(f)
         for entry in suricata_list:
-            suricata_by_port[entry.get("port")] = entry
+            suricata_by_port[(entry.get("ip"),entry.get("port"))] = entry
     else:
         print(f"WARNING: {SURICATA} not found — alerts will be empty")
 
@@ -535,7 +462,7 @@ def sync(wipe=False, reset_status=False):
         with open(ANOMALY) as f:
             anomaly_list = json.load(f)
         for entry in anomaly_list:
-            anomaly_by_port[entry.get("port")] = entry
+            anomaly_by_port[(entry.get("ip"),entry.get("port"))] = entry
 
     print(f"\nSyncing {len(assets_list)} assets...")
 
@@ -544,26 +471,27 @@ def sync(wipe=False, reset_status=False):
 
     # ── Pre-seed all master assets as INACTIVE ────────────────────────────────
     # They will be promoted to ACTIVE when the VM reports them in assets.json
-    active_ports = {a.get("port") for a in assets_list}
+    active_ports = {(a.get("ip"),a.get("port")) for a in assets_list}
     for ma in MASTER_ASSETS:
         ma_with_status = dict(ma)
-        ma_with_status["status"] = "ACTIVE" if ma["port"] in active_ports else "INACTIVE"
+        ma_with_status["status"] = "ACTIVE" if (ma["ip"],ma["port"]) in active_ports else "INACTIVE"
         ma_with_status["packet_count"] = next(
-            (a.get("packet_count", 0) for a in assets_list if a.get("port") == ma["port"]), 0
+            (a.get("packet_count", 0) for a in assets_list if (a.get("ip"),a.get("port")) == (ma["ip"],ma["port"])), 0
         )
         upsert_asset(cur, ma_with_status)
 
     for device in assets_list:
-        dt    = device.get("device_type", "")
+        dt    = (device.get("ip"),device.get("port"))
         cves  = cve_by_type.get(dt, [])
 
-        anomaly_entry = anomaly_by_port.get(device.get("port"))
+        anomaly_entry = anomaly_by_port.get((device.get("ip"),device.get("port")))
         if anomaly_entry:
             device["anomaly_score"]  = anomaly_entry.get("anomaly_score", 0.0)
             device["is_anomalous"]   = anomaly_entry.get("is_anomalous", False)
             device["anomaly_reason"] = anomaly_entry.get("reason")
 
         asset_id = upsert_asset(cur, device)
+        cur.execute('DELETE FROM vulnerabilities WHERE asset_id=%s AND NOT (cve_id = ANY(%s))',(asset_id,[c['cve_id'] for c in cves]))
         assets_saved += 1
 
         dt_risks = risk_idx.get(dt, {})
@@ -579,7 +507,7 @@ def sync(wipe=False, reset_status=False):
             cves_saved += 1
 
         # insert alerts from suricata_context.json
-        suricata_entry = suricata_by_port.get(device.get("port"))
+        suricata_entry = suricata_by_port.get((device.get("ip"),device.get("port")))
         alert_count = 0
         if suricata_entry and suricata_entry.get("alert_count", 0) > 0:
             alert_count = upsert_alerts(cur, asset_id, suricata_entry)
@@ -604,14 +532,12 @@ def sync(wipe=False, reset_status=False):
             cves_saved += 1
         print(f"  OK {pa['vendor']} {pa['product']} ({pa['device_type']}) — {len(pa.get('cves',[]))} CVEs [permanent]")
 
-    # ── Padding asset — status re-rolled every sync so it toggles over time ──
-    padding = dict(PADDING_ASSET)
-    padding["status"] = random.choices(["ACTIVE", "INACTIVE"], weights=[75, 25])[0]
-    upsert_asset(cur, padding)
-    print(f"  OK {padding['vendor']} {padding['product']} ({padding['device_type']}) — [padding, {padding['status']}]")
+
 
     ap_paths, ap_nodes = sync_attack_paths(cur)
 
+    from policy_service import run_checks
+    run_checks(conn)
     conn.commit()
     conn.close()
 
@@ -623,7 +549,7 @@ def sync(wipe=False, reset_status=False):
     print(f"{'='*50}")
 
     # ── Run policy compliance check for all assets ────────────────────────────
-    _run_policy_check(DB_CONFIG)
+    # Policy checks committed with the snapshot above.
 
 
 if __name__ == "__main__":

@@ -1,0 +1,37 @@
+const fs = require('fs');
+const vm = require('vm');
+const assert = require('assert');
+const template = fs.readFileSync(process.argv[2], 'utf8').replace(/\r\n/g, '\n');
+const source = template.slice(template.indexOf('    let scanBusy = false;'), template.indexOf('    refreshScanStatus();\n    setInterval(refreshScanStatus, 4000);'));
+const elements = Object.fromEntries(['scan-toggle-btn', 'scan-btn-label', 'scan-control-error'].map(id => [id, {disabled: false, hidden: true, textContent: '', classList: {add(){}, remove(){}}}]));
+let queue = [];
+const context = {document: {getElementById: id => elements[id]}, window: {CaveOT: {_notifyScanState(){}}}, fetch: async () => {
+    assert(queue.length, 'Unexpected request');
+    const value = queue.shift();
+    return {ok: value.ok !== false, json: async () => value};
+}};
+vm.createContext(context);
+vm.runInContext(source, context);
+(async () => {
+    queue = [{running: false, busy: true, state: 'STARTING'}];
+    await context.refreshScanStatus();
+    assert(elements['scan-toggle-btn'].disabled);
+    queue = [{running: true, busy: false, state: 'RUNNING'}];
+    await context.refreshScanStatus();
+    assert(!elements['scan-toggle-btn'].disabled);
+    assert(elements['scan-btn-label'].textContent.includes('RUNNING'));
+    queue = [{running: false, busy: false, state: 'FAILED', error: 'Build timeout'}];
+    await context.refreshScanStatus();
+    assert(!elements['scan-toggle-btn'].disabled);
+    assert.equal(elements['scan-control-error'].textContent, 'Monitoring: Build timeout');
+    assert(!elements['scan-control-error'].hidden);
+    queue = [{running: true, busy: false}, {success: true}, {running: true, busy: true, state: 'STOPPING'}];
+    await context.toggleScan();
+    assert(elements['scan-toggle-btn'].disabled);
+    queue = [{running: false, busy: false, state: 'STOPPED'}];
+    await context.refreshScanStatus();
+    assert(!elements['scan-toggle-btn'].disabled);
+    assert(elements['scan-btn-label'].textContent.includes('STOPPED'));
+    assert(elements['scan-control-error'].hidden);
+    console.log('Scan UI transition tests passed: starting, running, failure/retry, stopping, stopped.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

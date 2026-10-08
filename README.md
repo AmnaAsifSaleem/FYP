@@ -1,206 +1,56 @@
 # CAVE-OT
 
-**Context-Aware Vulnerability Engine for OT/ICS Networks**
+Context-Aware Vulnerability Engine for a simulated OT/ICS water-treatment plant.
 
-A testbed and analysis engine for OT/ICS security: it passively discovers
-devices on a simulated water-treatment plant network, maps them to real CVEs
-using TF-IDF similarity, scores risk with an OT-weighted CVSS-Environmental
-formula (availability weighted highest, matching physical-safety priorities
-rather than generic IT CIA weighting), models lateral-movement attack paths
-through the plant topology, and checks assets against NIST/NERC/CISA policy
-rules — all surfaced on a live web dashboard.
+## Current behavior
 
-**Team:** Amna Asif · Abdul Mueed Malik · M. Nameer Khan — NUCES-FAST Islamabad
+The engine captures simulated traffic, records observed endpoints, retrieves candidate CVEs, applies conservative product/firmware applicability checks, calculates a custom contextual risk score, and generates potential paths under configured topology assumptions. Complete monitoring cycles are atomically published to `docker/shared/snapshot.json`; the host validates and ingests each cycle into PostgreSQL, evaluates deterministic plant policies, and displays results through Flask.
 
----
+- Device vendor/product/firmware supplied by the testbed inventory are explicitly marked configured and unverified. Unknown TCP service endpoints are retained.
+- Text similarity is candidate retrieval, not vulnerability confirmation. Confirmed applicability requires verified identity and preserved simple vulnerable CPE/version constraints. Complex configurations and legacy flattened bounds need review.
+- Policy results include pass, fail, unknown, and not applicable per rule. Patch age, encryption, and lifecycle data are never fabricated. An explicit plant rule prohibits OT protocols such as Modbus in the IT zone; ML cannot override that failure. Decisions are APPROVE, RESTRICT, REMEDIATE, and NEEDS_REVIEW; restrictions are analyst recommendations, not device enforcement.
+- The review queue prioritizes failures on critical assets, then other failures, missing evidence, and passing assets, with direct links to remediation.
+- The RandomForest is an optional historical advisory experiment. It is not required to run policy checks.
+- Contextual risk is a custom prioritization score, version `cave-ot-2`, not official CVSS Environmental scoring. CVSS severity is retained separately; unknown CIA evidence stays null.
+- IsolationForest evaluates against the previous accepted baseline; normal samples have zero anomaly suspicion. Unconfirmed anomalies do not boost live risk.
+- Remediation requires confirmed CVE applicability, an external Groq key, retrieved local CVE context, deterministic safety checks, and human review. The server rejects blocked approvals and rechecks current evidence. Recommendations do not configure devices.
+- Testbed services use simplified fixed protocol replies. Port 443 currently serves a plaintext HTTP simulation and is not evidence of TLS. Paths assume configured bidirectional reachability and do not prove exploitability.
 
-## What's actually running
+## Run on the Windows host
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Simulated plant (Docker or VM)                                  │
-│                                                                    │
-│  15 simulated devices (PLCs/RTUs/HMIs/sensors) talking real       │
-│  Modbus/S7/DNP3/BACnet/HTTP  →  Suricata IDS  →  passive          │
-│  discovery  →  TF-IDF CVE matching  →  CVSS-Environmental risk    │
-│  scoring  →  Dijkstra attack-path analysis                        │
-└──────────────────────────────┬──────────────────────────────────┘
-                                │ JSON output → shared folder
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Windows host                                                     │
-│  file_watcher.py → Database/sync_db.py → PostgreSQL               │
-│                                          → Dashboard/app.py        │
-│                                            → http://localhost:5000 │
-└─────────────────────────────────────────────────────────────────┘
-```
+Requires Python 3.11+, local PostgreSQL, and a working Linux container engine. This checkout selects the already-installed Docker Engine in WSL Ubuntu through `docker/backend.json`; Docker Desktop data is preserved. Set backend to `native` to return to Docker Desktop once its Windows socket issue is repaired. The WSL backend maintains a hidden project-owned session while monitoring runs, preventing WSL idle shutdown; `python docker_backend.py compose down` releases it.
 
-Two ways to run the "simulated plant" half — pick one:
-
-- **Docker** (recommended — see [`docker/README.md`](docker/README.md) for
-  full architecture details) — two containers, no VM required, works
-  identically for every teammate who clones this repo.
-- **VM** (Ubuntu Server + Conpot, the original setup) — heavier, but kept as
-  an alternative; see [Running on the VM](#running-on-the-vm) below.
-
-Both produce the exact same JSON output and feed the same host-side
-pipeline — you don't need both, and the dashboard doesn't know or care which
-one produced the data it's showing.
-
----
-
-## Quickstart (Docker path)
-
-### 1. Prerequisites
-
-- **Docker Desktop** (with WSL2 backend) — [docker.com](https://www.docker.com/products/docker-desktop/)
-- **PostgreSQL** — running locally, with a `cave_ot` database
-- **Python 3.11+**
-
-### 2. Clone and install Python dependencies
-
-```bash
-git clone https://github.com/mueedmak/CAVE-OT.git
-cd CAVE-OT
-pip install -r requirements.txt
-```
-
-### 3. Train the CVE-matching model (one-time, ~5-10 minutes)
-
-The trained model (`model/*.pkl`) is gitignored — too large for git, and it's
-just derived data. Regenerate it:
-
-```bash
-python Model_Training/model_trainer.py
-```
-
-(Needs the OT/general CVE datasets — see [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md)
-if these aren't already present under `Datasets/`.)
-
-### 4. Set up the database
-
-```bash
+```powershell
+python -m pip install -r requirements.txt
+# First-time database initialization:
 psql -U postgres -c "CREATE DATABASE cave_ot;"
 psql -U postgres -d cave_ot -f Database/db_schema.sql
 psql -U postgres -d cave_ot -f Database/db_schema_policy.sql
-```
-
-(Default credentials assumed throughout the codebase: user `postgres`,
-password `admin`, host `localhost`, port `5432` — adjust `DB_CONFIG` in
-`Dashboard/app.py` / `Database/sync_db.py` / `attack_path.py` if yours differ.)
-
-### 5. Start the simulated plant
-
-```bash
-cd docker
-docker compose up -d --build
-```
-
-Watch it running: `docker logs -f caveot-engine`
-
-### 6. Start the host-side pipeline
-
-In two separate terminals, from the repo root:
-
-```bash
+psql -U postgres -d cave_ot -f Database/db_schema_remediation.sql
+python Database/migrate_audit_fixes.py
+python docker_backend.py compose up -d --build
 python file_watcher.py
-```
-```bash
 python Dashboard/app.py
 ```
 
-### 7. Open the dashboard
+Open http://127.0.0.1:5000. Stored results remain readable when scanning is stopped. Dashboard startup applies the versioned migration and starts the watcher. Do not run a second watcher if the dashboard already started one.
 
-**http://localhost:5000**
+Connection variables: `CAVE_OT_DB_HOST`, `CAVE_OT_DB_PORT`, `CAVE_OT_DB_NAME`, `CAVE_OT_DB_USER`, `CAVE_OT_DB_PASSWORD`. The default database user is postgres; set `CAVE_OT_DB_PASSWORD` in your environment before connecting. `CAVE_OT_RUNTIME_DIR` overrides the host shared folder. `CAVE_OT_ENGINE_DIR` overrides engine runtime paths for VM/replay use; `CAVE_OT_DOCKER=1` selects container paths. The dashboard binds to loopback without debug mode by default.
 
-Within ~15-40 seconds of step 5, you should see live assets, CVEs, alerts,
-and attack paths.
+## Training and provenance
 
-Full Docker architecture, design rationale, and troubleshooting:
-[`docker/README.md`](docker/README.md).
+`Model_Training/model_trainer.py` fits a general TF-IDF index and an OT index with shared vocabulary. Vendor/product weighting repeats separate tokens. Existing corpora can be recovered with `python Model_Training/rebuild_from_corpus.py`; original models are backed up and recovered CSVs receive provenance metadata. This does not reconstruct missing CPE constraints or policy labels. No new accuracy claim is made without independent labeled applicability evaluation.
 
----
+`Data_Processing/data_processor.py` preserves vulnerable CPE entries, inclusive/exclusive bounds, and a conservative flag for simple configurations. Preserve these fields through cleaning and training. More complex AND/negated applicability is reported for review.
 
-## Running on the VM
+## Verify
 
-The original setup used an Ubuntu Server VM running Conpot honeypots instead
-of Docker containers. If you have the VM disk image (shared separately —
-~15GB, not distributed via git):
-
-1. Boot the VM, open a terminal as the `caveot` user
-2. `cd /home/caveot/cave_ot_test && sudo python3 cave_monitor.py`
-3. On the host, point `file_watcher.py`'s `WATCH_DIR` and
-   `Database/sync_db.py`'s `_SHARED` at your VMware shared folder path
-   instead of `docker/shared/`
-4. Steps 6-7 above are identical either way
-
----
-
-## Features
-
-| Module | What it does | Status |
-|---|---|---|
-| **Passive discovery** (`smart_discover.py`) | Identifies devices from captured traffic (port + protocol), no active scanning — safe for fragile OT devices | Live |
-| **CVE matching** (`cve_discovery.py`) | TF-IDF cosine similarity against a 4.8k-entry OT-specific CVE corpus | Live |
-| **Risk scoring** (in `cave_monitor.py`) | CVSS-Environmental formula, OT-weighted CIA (availability > integrity > confidentiality), boosted by EPSS/KEV/live IDS alerts | Live |
-| **Attack path analysis** (`attack_path.py`) | Dijkstra shortest-path lateral-movement modelling from IT entry points to high-criticality OT targets, risk-weighted | Live |
-| **Policy compliance** (`Policy_Compliance/`) | RandomForest classifier against NIST SP 800-82r3 / NERC CIP-007-6 / CISA DiD rules, with plain-English explanations | Live (ML-only — see `TODO.md` for the planned deterministic-rules gate) |
-| **LLM remediation advisor** | RAG-based, human-in-the-loop remediation suggestions | Not yet built — see [`CAVE-OT_Iteration_and_Roadmap.md`](CAVE-OT_Iteration_and_Roadmap.md) |
-
-## Risk scoring formula
-
-CVSS v3.1 Environmental Scoring + NIST SP 800-82 OT weighting:
-
-```
-temporal      = cvss × exploit_maturity(epss) × remediation(kev)
-cia           = (c_impact × 0.20) + (i_impact × 0.30) + (a_impact × 0.50)
-environmental = min(temporal × cia × asset_criticality × 10, 10.0)
-if kev == 1: environmental × 1.10   (capped at 10.0)
-suricata_factor = min((alert_count × severity_weight) / 30, 1.0) × 1.5
-final = min(environmental + suricata_factor, 10.0)
+```powershell
+python -m pytest tests -q -p no:cacheprovider
+$env:CAVE_OT_TEST_DB='1'
+python -m pytest tests -q -p no:cacheprovider
 ```
 
-Availability is weighted highest (0.50) — in OT, a bug that takes a pump
-offline is a physical-safety problem, unlike a typical IT confidentiality
-breach.
+Database integration tests create and remove disposable schemas and never modify production records. Regression coverage includes invalid scores, firmware boundaries, missing evidence, deterministic policy/API/database flow, violation/alert idempotency, snapshot corruption, remediation contracts, and blocked approvals. Live Docker/Suricata tests require a functioning host engine; a stopped engine is not a successful live test.
 
-**Risk tiers:** 🔴 CRITICAL ≥8.0 · 🟠 HIGH 6.0-7.9 · 🟡 MEDIUM 4.0-5.9 · 🟢 LOW <4.0
-
-## CVE matching model
-
-Two-stage TF-IDF training:
-1. **General model** (206k CVEs) — broad patterns across IT and OT
-2. **OT fine-tuned model** (4.8k CVEs) — specialized vocabulary for
-   ICS/SCADA vendor/product terms, used at runtime by `cve_discovery.py`
-
-Cosine similarity against the query string (vendor + product + firmware),
-filtered by firmware version range where available.
-
----
-
-## What's in this repo (and what isn't)
-
-Source code only. Large/regenerable artifacts are gitignored — see
-[`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) for the full manifest.
-
-| Excluded | How to get it |
-|---|---|
-| `model/*.pkl` (TF-IDF models) | `python Model_Training/model_trainer.py` |
-| `Policy_Compliance/models/*.pkl` | `python Policy_Compliance/policy_model_trainer.py` |
-| `Datasets/`, NVD zips, EPSS/KEV | Download from NVD/FIRST/CISA, then `python Data_Processing/data_processor.py` |
-| VM disk image (~15GB) | Shared separately — or just use Docker instead, see Quickstart above |
-| `docker/shared/` (generated runtime output) | Created automatically when the pipeline runs |
-
-## Known gaps / planned work
-
-See [`TODO.md`](TODO.md) — currently tracking: graceful handling of
-unrecognized devices during discovery, making policy compliance a
-deterministic rules-gate instead of pure ML classification, and further
-file-layout cleanup.
-
-## Academic references
-
-- TF-IDF: Salton & Buckley (1988)
-- CVSS v3.1: FIRST.org
-- OT CIA weighting: NIST SP 800-82
-- Asset criticality: IEC 62443
+The audit repair migration preserves pre-repair rows in `audit_repair_archive`, repairs orphaned compliance references and duplicated rule seeds, restores the foreign key, removes artificial port-zero padding, and marks old similarity associations unverified.

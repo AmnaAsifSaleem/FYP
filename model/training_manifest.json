@@ -1,0 +1,15 @@
+{
+  "method": "TF-IDF token weighting corrected; OT-specific fitting with shared vocabulary",
+  "general_rows": 212692,
+  "ot_rows": 5950,
+  "hashes": {
+    "cve_database.pkl": "497c245d5716f15f0d5761003154bfb5118e5125ce7d9d4daecdf052a65dce0d",
+    "general_matrix.pkl": "a4546a20a8854cb5663e1f55cdc485551bbd2d2ad27ed9abb18ee92533db56b7",
+    "general_vectorizer.pkl": "93644d93b6e521471ca900e11be0c854975bfbc1ce132f7c7a09d0c781c555e5",
+    "ot_cve_database.pkl": "9c106d98ea28c1084fa2c6df2f3c9503754f345fba751458b7fbdf2571ae1a14",
+    "ot_matrix.pkl": "ade5650518303c8ec1b7e018f878f5f84161e251c4030a2e528e1e43d93f8a74",
+    "ot_vectorizer.pkl": "d4f5d399ab058bb93bdd5e83b82242b20aa97207cad17a48ba714a3a423f2105"
+  },
+  "applicability": "Candidate retrieval only; legacy version bounds cannot confirm applicability",
+  "evaluation": "No new accuracy claim; independent applicability benchmark required"
+}

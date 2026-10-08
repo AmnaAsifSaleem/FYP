@@ -134,7 +134,7 @@ host PostgreSQL → Flask dashboard.
 ---
 
 ## Known gaps vs. project document
-- **LLM + RAG remediation advisor** (Module 2): NOT implemented.
-- **Attack-path analysis** (NetworkX): partial/not in live path.
+- **Remediation advisor**: on-demand generation with local CVE context, safety checks, and server-enforced analyst decisions.
+- **Attack-path analysis**: integrated potential-path simulation with explicit configured topology assumptions.
 - **RF/XGBoost classifier**: project doc (Module 2 FR3) promises it; live path actually
   uses the deterministic CVSS-Environmental formula + TF-IDF. Reconcile in the report.

@@ -23,8 +23,8 @@ def build_corpus(df):
     """Build text corpus with weighted repetition"""
     texts = []
     for _, row in df.iterrows():
-        vendor = str(row['vendor']) * 3
-        product = str(row['product']) * 2
+        vendor = ' '.join([str(row['vendor'])] * 3)
+        product = ' '.join([str(row['product'])] * 2)
         desc = str(row['description'])
         texts.append(f'{vendor} {product} {desc}')
     return texts

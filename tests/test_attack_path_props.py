@@ -106,7 +106,7 @@ def test_node_risk_annotation_round_trip(cve_scores: list):
         f"Device '{device_type}' missing from annotations"
     )
 
-    actual = annotations[device_type]
+    actual = annotations[device_type]["risk_score"]
     max_score = max(cve_scores)
 
     if max_score > 0.0:

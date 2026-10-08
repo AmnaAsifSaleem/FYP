@@ -24,3 +24,6 @@ vm_extra/
 Assets/
 *.pcap
 *.md
+model/.backup/
+model/rebuild-*/
+**/__pycache__/

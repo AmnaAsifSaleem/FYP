@@ -11,6 +11,5 @@ psycopg2-binary
 networkx
 watchdog
 
-# Remediation Advisor (Dashboard/remediation_api.py, Remediation/remediation_advisor.py)
-google-genai
+# Remediation Advisor uses Groq over HTTPS; API key comes from GROQ_API_KEY
 pydantic

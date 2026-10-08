@@ -1,3 +1,4 @@
+import os
 import psycopg2
 
 conn = psycopg2.connect(
@@ -5,7 +6,7 @@ conn = psycopg2.connect(
     port=5432,
     dbname="postgres",
     user="postgres",
-    password="admin"
+    password=os.environ.get("CAVE_OT_DB_PASSWORD", "")
 )
 conn.autocommit = True
 cur = conn.cursor()

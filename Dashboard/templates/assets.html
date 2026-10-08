@@ -10,7 +10,8 @@
 <div class="filter-bar mb-3">
     <button class="filter-btn active" onclick="filterAssets('ALL', this)">ALL</button>
     <button class="filter-btn" onclick="filterAssets('ACTIVE', this)">ACTIVE</button>
-    <button class="filter-btn" onclick="filterAssets('INACTIVE', this)">INACTIVE</button>
+    <button class="filter-btn" onclick="filterAssets('INACTIVE', this)">NOT RECENTLY SEEN</button>
+    <button class="filter-btn" onclick="filterAssets('NOT_MONITORED', this)">NOT MONITORED</button>
     <button class="filter-btn" onclick="filterAssets('OT', this)">OT ZONE</button>
     <button class="filter-btn" onclick="filterAssets('IT', this)">IT ZONE</button>
     <input class="ot-search ms-auto" type="text" id="asset-search" placeholder="Search vendor / product / IP..." oninput="searchAssets(this.value)" style="width:260px">
@@ -82,23 +83,9 @@ let allAssets = [];
 let currentFilter = 'ALL';
 let assetsLoaded = false;
 
-// Only fetch data when the scan is running; show nothing when offline
-CaveOT.onScanState((running) => {
-    if (running) {
-        if (!assetsLoaded) {
-            assetsLoaded = true;
-            loadAssets();
-        }
-    } else {
-        // Scan stopped — clear the rendered data so nothing shows under the overlay
-        allAssets = [];
-        assetsLoaded = false;
-        document.getElementById('assets-loading').style.display = 'none';
-        const grid = document.getElementById('assets-grid');
-        grid.innerHTML = '';
-        grid.style.display = 'none';
-    }
-});
+// Saved scan remains visible; the API supplies current monitoring status.
+loadAssets();
+CaveOT.onScanState((running,changed)=>{if(changed){loadAssets();}});
 
 async function loadAssets() {
     const r = await fetch('/api/assets');
@@ -106,6 +93,7 @@ async function loadAssets() {
     document.getElementById('assets-loading').style.display = 'none';
     document.getElementById('assets-grid').style.display = '';
     renderAssets(allAssets);
+    applyFilters();
 }
 
 function renderAssets(assets) {
@@ -124,25 +112,25 @@ function renderAssets(assets) {
 
         return `
         <div class="col-12 col-md-6 col-xl-4 asset-card-wrap"
-             data-status="${a.status}" data-zone="${a.zone}"
+             data-status="${a.status}" data-zone="${escapeHtml(a.zone)}"
              data-search="${(a.vendor+' '+a.product+' '+a.ip).toLowerCase()}">
             <div class="panel h-100" style="cursor:pointer;transition:border-color 0.2s"
                  onmouseenter="this.style.borderColor='var(--border-glow)'"
                  onmouseleave="this.style.borderColor='var(--border)'"
-                 onclick="openAsset(${a.id}, '${a.vendor} ${a.product}')">
+                 onclick="openAsset(${a.id}, '${escapeHtml(a.vendor)} ${escapeHtml(a.product)}')">
 
                 <!-- Card header -->
                 <div class="panel-header" style="background:var(--bg-dark)">
                     <div>
                         <div style="font-family:'Orbitron',monospace;font-size:12px;color:var(--text-primary);font-weight:700">
-                            ${a.vendor}
+                            ${escapeHtml(a.vendor)}
                         </div>
-                        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">${a.product}</div>
+                        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">${escapeHtml(a.product)}</div>
                     </div>
                     <div class="text-end">
-                        <span class="zone-${a.zone}">${a.zone}</span>
+                        <span class="zone-${escapeHtml(a.zone)}">${escapeHtml(a.zone)}</span>
                         <div style="margin-top:4px;font-family:'Share Tech Mono',monospace;font-size:10px">
-                            ${statusIcon}<span class="status-${a.status}" style="font-size:10px">${a.status}</span>
+                            ${statusIcon}<span class="status-${a.status}" style="font-size:10px">${escapeHtml(a.status_label||a.status)}</span>
                         </div>
                         <div style="margin-top:4px">${anomalyBadge(a.is_anomalous, a.anomaly_score, a.anomaly_reason)}</div>
                     </div>
@@ -153,7 +141,7 @@ function renderAssets(assets) {
                     <div class="row g-2 mb-3">
                         <div class="col-4">
                             <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-muted);letter-spacing:1px">IP</div>
-                            <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent-cyan)">${a.ip}</div>
+                            <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent-cyan)">${escapeHtml(a.ip)}</div>
                         </div>
                         <div class="col-4">
                             <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-muted);letter-spacing:1px">PORT</div>
@@ -161,7 +149,7 @@ function renderAssets(assets) {
                         </div>
                         <div class="col-4">
                             <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-muted);letter-spacing:1px">SERVICE</div>
-                            <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent-orange)">${a.service || '—'}</div>
+                            <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent-orange)">${escapeHtml(a.service || '—')}</div>
                         </div>
                     </div>
 
@@ -169,7 +157,7 @@ function renderAssets(assets) {
                     <div class="row g-2 mb-3">
                         <div class="col-6">
                             <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-muted);letter-spacing:1px">FIRMWARE</div>
-                            <div style="font-size:13px">${a.firmware || '—'}</div>
+                            <div style="font-size:13px">${escapeHtml(a.firmware || '—')}</div>
                         </div>
                         <div class="col-6">
                             <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-muted);letter-spacing:1px">TYPE</div>
@@ -265,10 +253,10 @@ async function openAsset(id, name) {
         <tr>
             <td style="color:var(--text-muted);font-family:'Share Tech Mono',monospace;font-size:11px">${i+1}</td>
             <td>
-                <a href="https://nvd.nist.gov/vuln/detail/${v.cve_id}" target="_blank"
+                <a href="https://nvd.nist.gov/vuln/detail/${escapeHtml(v.cve_id)}" target="_blank"
                    style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--accent-cyan);text-decoration:none"
                    onmouseover="this.style.textDecoration='underline'"
-                   onmouseout="this.style.textDecoration='none'">${v.cve_id}</a>
+                   onmouseout="this.style.textDecoration='none'">${escapeHtml(v.cve_id)}</a>
             </td>
             <td><span style="font-family:'Share Tech Mono',monospace;color:${riskColor(v.cvss)}">${v.cvss}</span></td>
             <td><span style="font-family:'Share Tech Mono',monospace;font-size:12px">${(v.epss*100).toFixed(2)}%</span></td>
@@ -291,5 +279,6 @@ function closeAssetModal() {
 
 // close on Escape key
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAssetModal(); });
+setInterval(()=>{if(!document.hidden){loadAssets();}},15000);
 </script>
 {% endblock %}

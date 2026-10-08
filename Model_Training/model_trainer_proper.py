@@ -19,8 +19,8 @@ def build_corpus(df):
     print(f"Building corpus from {len(df)} CVEs...")
     corpus = []
     for _, row in tqdm(df.iterrows(), total=len(df), desc="Processing"):
-        vendor = str(row['vendor']) * 3
-        product = str(row['product']) * 2
+        vendor = ' '.join([str(row['vendor'])] * 3)
+        product = ' '.join([str(row['product'])] * 2)
         desc = str(row['description'])
         corpus.append(f'{vendor} {product} {desc}')
     return corpus

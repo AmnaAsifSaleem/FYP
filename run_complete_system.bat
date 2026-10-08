@@ -17,7 +17,12 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo 2. Checking Dashboard...
+echo 2. Starting File Watcher...
+start "CAVE-OT File Watcher" cmd /k "cd /d "%~dp0" && python file_watcher.py"
+timeout /t 2 /nobreak > nul
+
+echo.
+echo 3. Checking Dashboard...
 tasklist | findstr "python" | findstr "app.py" > nul
 if %errorlevel% neq 0 (
     echo   Starting Dashboard...

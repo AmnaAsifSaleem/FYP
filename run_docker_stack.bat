@@ -3,7 +3,7 @@ echo ================================================
 echo  CAVE-OT: Building and starting Docker stack
 echo ================================================
 cd /d "%~dp0docker"
-docker compose up -d --build
+python ..\docker_backend.py compose up -d --build
 echo.
 echo ================================================
 echo  Exit code: %errorlevel%
