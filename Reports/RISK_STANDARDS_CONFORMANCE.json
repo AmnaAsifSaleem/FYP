@@ -1,0 +1,9 @@
+{
+  "reference": "https://www.first.org/cvss/calculator/cvsscalc31.js",
+  "seed": 20261009,
+  "all_base_vectors": 2592,
+  "extended_vectors": 3000,
+  "comparisons": 16776,
+  "mismatches": 0,
+  "examples": []
+}

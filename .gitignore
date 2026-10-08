@@ -59,6 +59,7 @@ env/
 ENV/
 .pytest_cache/
 .hypothesis/
+.risk-test-tmp*/
 .env.*
 *.pem
 *.key

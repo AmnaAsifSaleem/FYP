@@ -114,13 +114,13 @@ def test_full_pipeline_produces_json():
 # Test 2 — Flask API endpoint returns valid JSON  (Req 6.1, 6.2)
 # ===========================================================================
 
-def test_api_endpoint():
+def test_api_endpoint(monkeypatch):
     """
     Use the Flask test client to GET /api/attack_paths.
 
     Acceptable outcomes (test env has no live PostgreSQL DB):
       - 200 with a JSON array  (DB available and table may be empty or populated)
-      - 500 with a JSON object containing an "error" key  (DB unavailable)
+      - 503 with a JSON object containing an "error" key  (DB unavailable)
 
     In either case the response body MUST be valid JSON.
 
@@ -138,14 +138,17 @@ def test_api_endpoint():
         sys.path.insert(0, policy_dir)
 
     from Dashboard.app import app as flask_app  # type: ignore
+    import importlib,psycopg2
+    from unittest.mock import MagicMock
+    monkeypatch.setattr(importlib.import_module('Dashboard.app'),'get_conn',MagicMock(side_effect=psycopg2.OperationalError('Unavailable test database')))
 
     flask_app.config["TESTING"] = True
 
     with flask_app.test_client() as client:
         response = client.get("/api/attack_paths")
 
-        # Status must be 200 or 500 — anything else is unexpected
-        assert response.status_code in (200, 500), (
+        # This test explicitly injects database unavailability.
+        assert response.status_code == 503, (
             f"Unexpected HTTP status: {response.status_code}"
         )
 
@@ -178,13 +181,13 @@ def test_api_endpoint():
 # Test 2b — /api/attack_path_nodes returns valid JSON  (Req 6.6)
 # ===========================================================================
 
-def test_node_api_endpoint():
+def test_node_api_endpoint(monkeypatch):
     """
     Use the Flask test client to GET /api/attack_path_nodes.
 
     Acceptable outcomes (test env has no live PostgreSQL DB):
       - 200 with a JSON object  (DB available; may be empty or populated)
-      - 500 with a JSON object containing an "error" key  (DB unavailable)
+      - 503 with a JSON object containing an "error" key  (DB unavailable)
 
     Mirrors test_api_endpoint() but for the node-annotation endpoint, whose
     contract is a dict keyed by device_name rather than an array of records.
@@ -199,13 +202,16 @@ def test_node_api_endpoint():
         sys.path.insert(0, policy_dir)
 
     from Dashboard.app import app as flask_app  # type: ignore
+    import importlib,psycopg2
+    from unittest.mock import MagicMock
+    monkeypatch.setattr(importlib.import_module('Dashboard.app'),'get_conn',MagicMock(side_effect=psycopg2.OperationalError('Unavailable test database')))
 
     flask_app.config["TESTING"] = True
 
     with flask_app.test_client() as client:
         response = client.get("/api/attack_path_nodes")
 
-        assert response.status_code in (200, 500), (
+        assert response.status_code == 503, (
             f"Unexpected HTTP status: {response.status_code}"
         )
 
@@ -223,7 +229,7 @@ def test_node_api_endpoint():
         assert isinstance(body, dict), (
             f"Expected a JSON object, got {type(body)}: {raw[:200]}"
         )
-        if response.status_code == 500:
+        if response.status_code == 503:
             assert "error" in body, (
                 f"Expected 'error' key in 500 response body, got: {list(body.keys())}"
             )

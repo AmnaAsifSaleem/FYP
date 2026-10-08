@@ -131,7 +131,7 @@ function sortBy(key){
 function applyVulnFilters(){
     const query=document.getElementById('vuln-search').value.toLowerCase();
     const rows=allVulns.filter(v=>(!currentTier||v.risk_tier===currentTier)&&[v.cve_id,v.vendor,v.product].some(text=>(text||'').toLowerCase().includes(query)));
-    rows.sort((a,b)=>{const av=a[sortKey]??0,bv=b[sortKey]??0;const cmp=typeof av==='string'?av.localeCompare(bv):av-bv;return sortAsc?cmp:-cmp;});
+    rows.sort((a,b)=>{const av=(sortKey==='risk_score'?a.priority_total??a.risk_score:a[sortKey])??0,bv=(sortKey==='risk_score'?b.priority_total??b.risk_score:b[sortKey])??0;const cmp=typeof av==='string'?av.localeCompare(bv):av-bv;return sortAsc?cmp:-cmp;});
     renderVulns(rows);
 }
 
@@ -165,7 +165,15 @@ function renderVulns(data) {
                 <div style="font-family:'Share Tech Mono',monospace;font-size:12px">${(v.epss*100).toFixed(2)}%</div>
                 <div style="font-size:10px;color:var(--text-muted)">exploit prob</div>
             </td>
-            <td style="min-width:140px">${riskBar(v.risk_score)}</td>
+            <td style="min-width:140px">${riskBar(v.risk_score)}
+                <details style="font-size:11px;color:var(--text-muted)">
+                    <summary>Priority evidence</summary>
+                    <div>${escapeHtml(v.score_version||'legacy')} · Custom priority</div>
+                    <div>CVSS Environmental: ${escapeHtml(v.risk_evidence?.cvss_environmental??'Unavailable')}</div>
+                    <div>${escapeHtml(v.risk_evidence?.severity_basis||'Historical score; evidence unavailable')}</div>
+                    <div>Uncapped priority: ${escapeHtml(v.priority_total??'Unavailable')}</div>
+                </details>
+            </td>
             <td>${tierBadge(v.risk_tier)}</td><td style="min-width:220px;max-width:360px">
                 <div>${escapeHtml(v.applicability||'UNKNOWN')}</div>
                 <details style="margin-top:5px;font-size:11px;color:var(--text-muted)">

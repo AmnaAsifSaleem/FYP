@@ -32,6 +32,13 @@ services:
     cap_add:
       - NET_ADMIN   # suricata/tcpdump loopback capture
       - NET_RAW
+    environment:
+      TZ: UTC
+      CAVE_OT_ALERT_LOG_TIMEZONE: UTC
+      CAVE_OT_ALERT_WINDOW_SECONDS: ${CAVE_OT_ALERT_WINDOW_SECONDS:-300}
+      CAVE_OT_CVSS_CR: ${CAVE_OT_CVSS_CR:-X}
+      CAVE_OT_CVSS_IR: ${CAVE_OT_CVSS_IR:-X}
+      CAVE_OT_CVSS_AR: ${CAVE_OT_CVSS_AR:-X}
     volumes:
       - type: bind
         source: ./shared

@@ -67,10 +67,8 @@ MASTER_ASSETS = [
 
 # ── risk tier thresholds ──────────────────────────────────────────────────────
 def tier(score):
-    if score >= 8.0: return "CRITICAL"
-    if score >= 6.0: return "HIGH"
-    if score >= 4.0: return "MEDIUM"
-    return "LOW"
+    from contextual_risk import get_risk_tier
+    return get_risk_tier(score)
 
 
 def build_risk_index(scored_path):
@@ -85,6 +83,7 @@ def build_risk_index(scored_path):
         idx[dt] = {}
         for cve in dev.get("cves", []):
             idx[dt][cve["cve_id"]] = {
+                **cve,
                 "risk_score": cve.get("risk_score", 0.0),
                 "risk_tier":  cve.get("risk_tier", "LOW"),
                 "c_impact":   cve.get("c_impact", 0.0),
@@ -161,16 +160,17 @@ def upsert_cve(cur, asset_id, cve, risk_info):
         INSERT INTO vulnerabilities
             (asset_id, cve_id, cvss, epss, kev,
              c_impact, i_impact, a_impact,
-             risk_score, risk_tier, applicability, applicability_evidence, similarity, score_version, discovered_at, updated_at)
+             risk_score, risk_tier, applicability, applicability_evidence, similarity, score_version, risk_evidence, priority_total, discovered_at, updated_at)
         VALUES
             (%(asset_id)s, %(cve_id)s, %(cvss)s, %(epss)s, %(kev)s,
-             %(c)s, %(i)s, %(a)s, %(score)s, %(tier)s, %(applicability)s, %(evidence)s, %(similarity)s, %(score_version)s, NOW(), NOW())
+             %(c)s, %(i)s, %(a)s, %(score)s, %(tier)s, %(applicability)s, %(evidence)s, %(similarity)s, %(score_version)s, %(risk_evidence)s::jsonb, %(priority_total)s, NOW(), NOW())
         ON CONFLICT (asset_id, cve_id) DO UPDATE SET
             cvss=EXCLUDED.cvss, epss=EXCLUDED.epss, kev=EXCLUDED.kev,
             c_impact=EXCLUDED.c_impact, i_impact=EXCLUDED.i_impact,
             a_impact=EXCLUDED.a_impact, risk_score=EXCLUDED.risk_score,
             risk_tier=EXCLUDED.risk_tier,applicability=EXCLUDED.applicability,applicability_evidence=EXCLUDED.applicability_evidence,
-            similarity=EXCLUDED.similarity,score_version=EXCLUDED.score_version, updated_at=NOW();
+            similarity=EXCLUDED.similarity,score_version=EXCLUDED.score_version,
+            risk_evidence=EXCLUDED.risk_evidence,priority_total=EXCLUDED.priority_total, updated_at=NOW();
     """, {
         "asset_id": asset_id, "cve_id": cve["cve_id"],
         "cvss": cve.get("cvss", 0.0), "epss": cve.get("epss", 0.0),
@@ -180,7 +180,9 @@ def upsert_cve(cur, asset_id, cve, risk_info):
         "a": risk_info.get("a_impact", 0.0),
         "score": score, "tier": risk_info.get("risk_tier", tier(score)),
         "applicability":cve.get("applicability","UNKNOWN"),"evidence":cve.get("applicability_evidence","Legacy association; unverified"),
-        "similarity":cve.get("similarity",0),"score_version":cve.get("score_version","legacy"),
+        "similarity":cve.get("similarity",0),"score_version":risk_info.get("score_version",cve.get("score_version","legacy")),
+        "risk_evidence":json.dumps({k:risk_info.get(k) for k in ('severity_basis','cvss_environmental','cvss_environmental_vector','contributions','policy_version','ids_window_seconds')}),
+        "priority_total":risk_info.get('priority_total'),
     })
 
 
@@ -189,7 +191,7 @@ def upsert_alerts(cur, asset_id, suricata_entry):
     alert row per (asset, signature), keyed on the unique_asset_alert
     constraint.
 
-    smart_discover.py's alert_messages/alert_count are already cumulative
+    smart_discover.py's alert_messages/alert_count are recent-window
     totals read fresh from Suricata's fast.log each cycle (not a per-cycle
     delta), so the correct upsert behaviour is to REPLACE alert_count with
     the latest value, not add to it — otherwise every sync cycle would
@@ -206,6 +208,9 @@ def upsert_alerts(cur, asset_id, suricata_entry):
 
     from collections import Counter
     counts = Counter(messages)
+    # Preserve rows as history, but retire active IDS signatures absent from
+    # the current window. Never let old signatures remain active indefinitely.
+    cur.execute("UPDATE alerts SET is_active_attack=FALSE,alert_count=0 WHERE asset_id=%s AND alert_category='IDS Alert' AND NOT (alert_signature = ANY(%s))",(asset_id,list(counts)))
     event_map={}
     for event in suricata_entry.get('alert_events',[]):
         signature=event.get('message')
@@ -509,7 +514,7 @@ def sync(wipe=False, reset_status=False):
         # insert alerts from suricata_context.json
         suricata_entry = suricata_by_port.get((device.get("ip"),device.get("port")))
         alert_count = 0
-        if suricata_entry and suricata_entry.get("alert_count", 0) > 0:
+        if suricata_entry:
             alert_count = upsert_alerts(cur, asset_id, suricata_entry)
 
         print(f"  OK {device.get('vendor','')} {device.get('product','')} "

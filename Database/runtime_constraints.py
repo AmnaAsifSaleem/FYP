@@ -7,6 +7,10 @@ def apply(conn):
     from Database.migrate_policy_reviews import ensure
     ensure(conn)
     with conn.cursor() as cur:
+        # Additive migration: preserve existing scores and provenance. A new
+        # monitoring cycle replaces them with versioned cave-ot-3 results.
+        cur.execute('ALTER TABLE vulnerabilities ADD COLUMN IF NOT EXISTS risk_evidence JSONB')
+        cur.execute('ALTER TABLE vulnerabilities ADD COLUMN IF NOT EXISTS priority_total DOUBLE PRECISION')
         cur.execute("""INSERT INTO policy_rules(rule_name,description,policy_source,zone,is_active)
             SELECT 'IT Zone OT Protocol Restriction','Modbus, S7comm, DNP3 and BACnet are prohibited in the plant IT zone; require analyst restriction review','Plant segmentation policy','IT',TRUE
             WHERE NOT EXISTS (SELECT 1 FROM policy_rules WHERE rule_name='IT Zone OT Protocol Restriction')""")

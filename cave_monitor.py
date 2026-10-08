@@ -22,7 +22,7 @@ try:
 except ImportError:
     _JOBLIB_OK = False
 
-_RISK_TIERS   = [(8.0,"CRITICAL"),(6.0,"HIGH"),(4.0,"MEDIUM"),(0.0,"LOW")]
+_RISK_TIERS   = [(9.0,"CRITICAL"),(7.0,"HIGH"),(4.0,"MEDIUM"),(0.0,"LOW")]
 _SEV_WEIGHT   = {1:1.00, 2:0.60, 3:0.30}
 _MODEL_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "model")
 
@@ -42,20 +42,10 @@ def build_cia_lookup():
             print(f"[CIA LOOKUP] Failed to load {fname}: {e}", flush=True)
     return lookup
 
-def _cia_fallback(cvss):
-    if cvss >= 9.0: return 0.56, 0.56, 0.56
-    if cvss >= 7.0: return 0.22, 0.56, 0.56
-    if cvss >= 5.5: return 0.00, 0.22, 0.56
-    if cvss >= 4.0: return 0.00, 0.22, 0.22
-    return 0.00, 0.00, 0.22
 
-def get_risk_tier(score):
-    for threshold, tier in _RISK_TIERS:
-        if score >= threshold:
-            return tier
-    return "LOW"
 
-from contextual_risk import score_cve, score_details
+from contextual_risk import score_cve, score_details, get_risk_tier, VERSION
+from ids_context import risk_context
 
 R   = '\033[0;31m'
 G   = '\033[0;32m'
@@ -346,8 +336,9 @@ def _score_and_display(results_file):
             port        = device.get("port")
 
             suri          = suricata_lookup.get((ip,port), {})
-            alert_count   = suri.get("risk_alert_count",suri.get("alert_count",0))
-            alert_sev     = suri.get("risk_alert_severity",suri.get("alert_severity")) or 3
+            context       = risk_context(suri.get('alert_events',[]))
+            alert_count   = context['risk_alert_count']
+            alert_sev     = context['risk_alert_severity']
 
             anomaly         = anomaly_lookup.get((ip,port), {})
             anomaly_score   = anomaly.get("anomaly_score", 0.0) if anomaly.get("is_anomalous") else 0.0
@@ -356,18 +347,16 @@ def _score_and_display(results_file):
 
             scored_cves = []
             for cve in cves_raw:
-                rs, c, i, a, src = score_cve(cve, criticality, _cia_lookup, alert_count, alert_sev, anomaly_score)
-                tier = get_risk_tier(rs)
+                details=score_details(cve,criticality,_cia_lookup,alert_count,alert_sev,anomaly_score,
+                    weighted_alert_count=context['risk_alert_weighted_count'],
+                    security_requirements=device.get('cvss_requirements'))
                 scored_cves.append({
                     **cve,
-                    "c_impact": c, "i_impact": i, "a_impact": a,
-                    "cia_source": src,
-                    "risk_score": rs, "risk_tier": tier,
-                    "score_version": "cave-ot-2",
-                    "contributions": score_details(cve, criticality, _cia_lookup, alert_count, alert_sev, anomaly_score)["contributions"],
+                    **details,
+                    "ids_window_seconds":context['alert_window_seconds'],
                 })
 
-            scored_cves.sort(key=lambda x: (x["risk_score"], x["epss"]), reverse=True)
+            scored_cves.sort(key=lambda x: (x["priority_total"], x["epss"]), reverse=True)
 
             top_risk  = scored_cves[0]["risk_score"] if scored_cves else 0.0
             top_tier  = scored_cves[0]["risk_tier"]  if scored_cves else "LOW"
@@ -406,9 +395,9 @@ def _score_and_display(results_file):
                 "ip": ip, "port": port, "device_type": device_type,
                 "vendor": vendor, "product": product,
                 "criticality": criticality,
-                "score_version": "cave-ot-2",
+                "score_version": VERSION,
                 "cia_db_hits":  sum(1 for c in scored_cves if c["cia_source"] == "db"),
-                "cia_fallback": sum(1 for c in scored_cves if c["cia_source"] == "fallback"),
+                "cia_unknown": sum(1 for c in scored_cves if c["cia_source"] == "unknown"),
                 "anomaly_score": anomaly_score, "is_anomalous": is_anomalous,
                 "anomaly_reason": anomaly_reason,
                 "cves": scored_cves,

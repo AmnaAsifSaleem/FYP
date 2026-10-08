@@ -11,8 +11,8 @@ The engine captures simulated traffic, records observed endpoints, retrieves can
 - Policy results include pass, fail, unknown, and not applicable per rule. Patch age, encryption, and lifecycle data are never fabricated. An explicit plant rule prohibits OT protocols such as Modbus in the IT zone; ML cannot override that failure. Decisions are APPROVE, RESTRICT, REMEDIATE, and NEEDS_REVIEW; restrictions are analyst recommendations, not device enforcement.
 - The review queue prioritizes failures on critical assets, then other failures, missing evidence, and passing assets, with direct links to remediation.
 - The RandomForest is an optional historical advisory experiment. It is not required to run policy checks.
-- Contextual risk is a custom prioritization score, version `cave-ot-2`, not official CVSS Environmental scoring. CVSS severity is retained separately; unknown CIA evidence stays null.
-- IsolationForest evaluates against the previous accepted baseline; normal samples have zero anomaly suspicion. Unconfirmed anomalies do not boost live risk.
+- Contextual risk is a custom prioritization score, version `cave-ot-3`, not official CVSS Environmental scoring. Complete v3.1 vectors provide a separate FIRST Environmental result; missing vectors leave it unavailable. See [Reports/FORMULAS.md](Reports/FORMULAS.md) for verified standards mappings and project policy assumptions. CVSS severity is retained separately; unknown CIA evidence stays null.
+- IsolationForest evaluates against the previous accepted baseline; normal samples have zero anomaly suspicion. Unconfirmed anomalies do not boost live risk. IDS contributions use timestamped recent-window events weighted individually; old cached events are rechecked and expired. Uncapped priority totals distinguish findings tied at 10.
 - Remediation requires confirmed CVE applicability, an external Groq key, retrieved local CVE context, deterministic safety checks, and human review. The server rejects blocked approvals and rechecks current evidence. Recommendations do not configure devices.
 - Testbed services use simplified fixed protocol replies. Port 443 currently serves a plaintext HTTP simulation and is not evidence of TLS. Paths assume configured bidirectional reachability and do not prove exploitability.
 
@@ -57,6 +57,29 @@ The audit repair migration preserves pre-repair rows in `audit_repair_archive`, 
 
 ## Analyst policy review
 
-System recommendations and analyst decisions are separate. The policy page shows rule counts, records named decisions and rationale, and requests revalidation when policy evidence changes. Typed reviewer names are not authenticated accounts. See [Reports/POLICY_REVIEW_EXPLAINED.md](Reports/POLICY_REVIEW_EXPLAINED.md).
+The policy page separates automatic recommendations from named analyst decisions.
+Rule counts replace the coverage percentage. An approval exception needs an explicit
+acknowledgment and rationale; it does not turn failed checks into passes. Reviews
+are retained during automatic evaluation and marked for revalidation when policy
+evidence changes. Names are self-reported in this local prototype, not authenticated.
 
-Normal migration creates the ledger; explicit setup: `python Database/migrate_policy_reviews.py`.
+The normal evidence migration creates the ledger. Explicit setup is also available:
+`python Database/migrate_policy_reviews.py`. See
+[Reports/POLICY_REVIEW_EXPLAINED.md](Reports/POLICY_REVIEW_EXPLAINED.md).
+
+## Unassessed graph nodes
+
+N/A means no scored CVE evidence, not measured zero risk. The graph still models
+configured connectivity. Its heuristic charges outgoing edges by
+`1 / max(source_node_risk_score, 0.01)`: an unassessed zero placeholder costs 100.
+A path sums its edges; the final target's score is not charged unless it is traversed
+as a source for another edge. These costs are assumptions, not exploit probabilities.
+
+## Deployment provenance
+
+The monitored demo inspected on 2026-10-09 ran `cave-ot-2` with the updated policy
+and display features. This source release includes `cave-ot-3`; its engine changes
+take effect after rebuilding/redeploying Docker. Older live/synthetic test reports
+remain historical evidence and do not certify the new scorer's live performance.
+Missing model vectors require corpus regeneration before Environmental scoring is
+available. Deployment and source version must be distinguished in presentations.

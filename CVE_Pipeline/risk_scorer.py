@@ -3,12 +3,16 @@ CAVE-OT Risk Scorer
 Calculates contextual risk scores for CVEs using a custom contextual prioritization formula
 with OT-specific CIA reweighting and Suricata alert integration.
 """
+from pathlib import Path
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from contextual_risk import score_cve,score_details,VERSION
 
 import json
 import sys
 import os
 
-# Asset criticality values (IEC 62443)
+# Project testbed criticalities; not IEC-prescribed numerical values
 ASSET_CRITICALITY = {
     'PLC': 1.00,
     'RTU': 0.95,
@@ -22,8 +26,8 @@ ASSET_CRITICALITY = {
 
 # Risk tier thresholds
 RISK_TIERS = [
-    (8.0, 'CRITICAL', '🔴'),
-    (6.0, 'HIGH', '🟠'),
+    (9.0, 'CRITICAL', '🔴'),
+    (7.0, 'HIGH', '🟠'),
     (4.0, 'MEDIUM', '🟡'),
     (0.0, 'LOW', '🟢'),
 ]
@@ -31,47 +35,14 @@ RISK_TIERS = [
 # Suricata severity weights
 SEVERITY_WEIGHT = {1: 1.00, 2: 0.60, 3: 0.30}
 
-def get_exploit_code_maturity(epss):
-    """Calculate exploit code maturity factor from EPSS"""
-    if epss >= 0.70:
-        return 1.00  # High - actively exploited
-    elif epss >= 0.40:
-        return 0.97  # Functional exploit exists
-    elif epss >= 0.10:
-        return 0.94  # Proof of concept
-    else:
-        return 0.91  # Unproven
 
-def get_remediation_level(kev):
-    """Calculate remediation level factor from KEV status"""
-    if kev == 1:
-        return 1.00  # No fix - confirmed in wild
-    else:
-        return 0.95  # Official fix available
 
-def calculate_temporal_score(cvss, epss, kev):
-    """Calculate CVSS v3.1 Temporal Score"""
-    exploit_maturity = get_exploit_code_maturity(epss)
-    remediation = get_remediation_level(kev)
-    return cvss * exploit_maturity * remediation
 
-def calculate_cia_score(c_impact, i_impact, a_impact):
-    """Calculate OT-weighted CIA score (NIST SP 800-82)"""
-    # OT weighting: Availability > Integrity > Confidentiality
-    return (c_impact * 0.20) + (i_impact * 0.30) + (a_impact * 0.50)
 
-def calculate_suricata_factor(alert_count, alert_severity):
-    """Calculate Suricata context factor"""
-    if alert_count == 0:
-        return 0.0
-    
-    severity_weight = SEVERITY_WEIGHT.get(alert_severity, 0.30)
-    factor = (alert_count * severity_weight) / 30.0
-    return min(factor, 1.0)
 
 def calculate_risk_score(cve, device_type, alert_count=0, alert_severity=3):
     from contextual_risk import score_cve
-    lookup = {cve.get('cve_id'): (cve['c_impact'], cve['i_impact'], cve['a_impact'])}
+    lookup = {cve.get('cve_id'): (cve['c_impact'],cve['i_impact'],cve['a_impact'])} if all(cve.get(k) is not None for k in ('c_impact','i_impact','a_impact')) else {}
     return score_cve(cve, ASSET_CRITICALITY.get(device_type,.3),lookup,alert_count,alert_severity)[0]
 
 
@@ -89,14 +60,17 @@ def score_device_cves(device):
         return
     
     device_type = device.get('device_type', 'Generic')
-    alert_count = device.get('alert_count', 0)
-    alert_severity = device.get('alert_severity', 3)
+    from ids_context import risk_context
+    ctx=risk_context(device.get('alert_events',[]))
     
     # Calculate risk score for each CVE
     for cve in cves:
-        risk_score = calculate_risk_score(
-            cve, device_type, alert_count, alert_severity
-        )
+        lookup={cve.get('cve_id'):tuple(cve[k] for k in ('c_impact','i_impact','a_impact'))} if all(cve.get(k) is not None for k in ('c_impact','i_impact','a_impact')) else {}
+        details=score_details(cve,ASSET_CRITICALITY.get(device_type,.3),lookup,
+            weighted_alert_count=ctx['risk_alert_weighted_count'],
+            security_requirements=device.get('cvss_requirements'))
+        cve.update(details)
+        risk_score=details['risk_score']
         risk_tier, risk_emoji = get_risk_tier(risk_score)
         
         cve['risk_score'] = risk_score
@@ -104,7 +78,7 @@ def score_device_cves(device):
         cve['risk_emoji'] = risk_emoji
     
     # Sort by risk score (highest first)
-    device['cves'].sort(key=lambda x: x['risk_score'], reverse=True)
+    device['cves'].sort(key=lambda x: x['priority_total'], reverse=True)
 
 def main():
     # Parse command line arguments

@@ -4,6 +4,7 @@ import re
 import os
 from pipeline_paths import ENGINE_FOLDER
 from snapshot_io import atomic_json
+from ids_context import risk_context
 
 PORT_MAP = {
     502:   {"service": "Modbus",  "device_type": "Dosing_Pump_PLC",        "zone": "OT"},
@@ -135,7 +136,9 @@ CRITICALITY_MAP = {
     "Linux_Server":           0.50,
 }
 
-def read_suricata_alerts(log_file="/var/log/suricata/fast.log"):
+def read_suricata_alerts(log_file="/var/log/suricata/fast.log", *, now=None, window_seconds=None):
+    from ids_context import fast_timestamp,recent_events
+    from risk_policy import ALERT_WINDOW_SECONDS
     alerts = []
     try:
         with open(log_file, 'r') as f:
@@ -148,28 +151,33 @@ def read_suricata_alerts(log_file="/var/log/suricata/fast.log"):
                 src_match  = re.search(r'(\d+\.\d+\.\d+\.\d+):\d+ -> ', line)
                 if not msg_match or not port_match:
                     continue
+                try:
+                    timestamp=fast_timestamp(line.split()[0],now).isoformat()
+                except ValueError:
+                    continue
                 msg       = msg_match.group(1).strip()
                 dest_port = int(port_match.group(1))
                 src_ip    = src_match.group(1) if src_match else "unknown"
                 priority_match=re.search(r'\[Priority: (\d+)\]',line)
                 if priority_match:
                     severity=int(priority_match.group(1))
-                elif "Attack" in msg or "Rapid" in msg or "Brute" in msg:
-                    severity = 1
-                elif "Write" in msg:
-                    severity = 2
                 else:
+                    # Wording is not priority evidence. Missing explicit
+                    # priority remains informational for numeric scoring.
                     severity = 3
                 alerts.append({
+                    "timestamp": timestamp,
+                    "signature_id": re.search(r'\[\*\*\] \[(.*?)\]',line).group(1),
                     "message":   msg,
                     "dest_port": dest_port,
                     "src_ip":    src_ip,
+                    "src_port": int(re.search(r':(\d+) -> ',line).group(1)) if src_match else None,
                     "dest_ip":re.search(r'-> ([\d\.]+):',line).group(1),
                     "severity":  severity
                 })
     except Exception as e:
         print(f"[!] Suricata log error: {e}")
-    return alerts
+    return recent_events(alerts,now,ALERT_WINDOW_SECONDS if window_seconds is None else window_seconds)
 
 def observed_transport(packet,service):
     """Recognize plaintext application bytes; ports alone never establish TLS."""
@@ -301,12 +309,10 @@ def run(pcap_file):
             "description":    asset.get("description"),
             "criticality":    asset["criticality"],
             "alert_count":    alert_count,
-            "risk_alert_count":sum(a["severity"]<=2 for a in asset_alerts),
-            "risk_alert_severity":min((a["severity"] for a in asset_alerts if a["severity"]<=2),default=3),
             "alert_severity": alert_severity,
             "is_attacked":    is_attacked,
             "alert_messages": [a["message"] for a in asset_alerts],
-            "alert_events":asset_alerts
+            **risk_context(asset_alerts)
         })
 
     atomic_json(os.path.join(ENGINE_FOLDER,"assets.json"),assets_output)

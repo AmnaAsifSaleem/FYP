@@ -412,6 +412,10 @@ def _path_record(
         dict with keys: entry, target, path, hops, cost, max_risk_on_path.
     """
     max_risk = max(graph.nodes[n]["risk_score"] for n in path)
+    unassessed=[n for n in path if not graph.nodes[n].get('top_cve_id')]
+    # Costs are charged on outgoing source nodes; the last node is not
+    # charged. Missing CVE scores use the existing 0.01 computational floor.
+    placeholder_sources=[n for n in path[:-1] if not graph.nodes[n].get('top_cve_id')]
     return {
         "entry":            entry,
         "target":           target,
@@ -419,6 +423,9 @@ def _path_record(
         "hops":             len(path) - 1,
         "cost":             round(cost, 4),
         "max_risk_on_path": round(max_risk, 1),
+        "unassessed_nodes":unassessed,
+        "cost_placeholder_sources":placeholder_sources,
+        "cost_basis":"Heuristic sum of outgoing-edge 1/max(source priority,0.01); not measured exploit risk",
     }
 
 

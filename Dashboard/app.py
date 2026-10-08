@@ -223,7 +223,7 @@ def api_summary():
             FROM vulnerabilities v
             JOIN assets a ON a.id = v.asset_id
             WHERE v.applicability IN ('CONFIRMED','POTENTIAL') AND v.kev = TRUE
-            ORDER BY v.risk_score DESC
+            ORDER BY COALESCE(v.priority_total,v.risk_score) DESC
             LIMIT 5;
         """)
         kev_details = [
@@ -334,7 +334,7 @@ def api_asset_cves(asset_id):
             FROM vulnerabilities v
             JOIN assets a ON a.id = v.asset_id
             WHERE v.asset_id = %s
-            ORDER BY v.risk_score DESC;
+            ORDER BY COALESCE(v.priority_total,v.risk_score) DESC;
         """, (asset_id,))
         rows = [dict(r) for r in cur.fetchall()]
         conn.close()
@@ -373,6 +373,7 @@ def api_vulnerabilities():
             SELECT
                 v.id, v.cve_id, v.cvss, v.epss, v.kev,
                 v.risk_score, v.risk_tier, v.applicability, v.applicability_evidence, v.score_version,
+                v.risk_evidence,v.priority_total,
                 v.c_impact, v.i_impact, v.a_impact,
                 v.discovered_at,
                 a.ip, a.port, a.vendor, a.product,
@@ -381,7 +382,7 @@ def api_vulnerabilities():
             FROM vulnerabilities v
             JOIN assets a ON a.id = v.asset_id
             {where}
-            ORDER BY v.risk_score DESC
+            ORDER BY COALESCE(v.priority_total,v.risk_score) DESC
             LIMIT %s;
         """, params)
         rows = [dict(r) for r in cur.fetchall()]

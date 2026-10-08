@@ -1,0 +1,25 @@
+{
+  "source_release": "cave-ot-3 with analyst policy review",
+  "regression_suite": {
+    "passed": 140,
+    "skipped": 8,
+    "failed": 0,
+    "skipped_scope": "Opt-in PostgreSQL integration and complete replay checks"
+  },
+  "policy_workflow": {
+    "flask_postgresql_isolated_checks_passed": 25,
+    "synthetic_live_decisions_written": 0,
+    "ui_checks": "Passed rule counts, decision payload, acknowledgment and stale-evidence recovery"
+  },
+  "cvss_reference": {
+    "score_comparisons": 16776,
+    "mismatches": 0
+  },
+  "deployment": {
+    "live_scorer": "cave-ot-2",
+    "policy_ui": "Updated and verified",
+    "live_assets": 15,
+    "live_cve_matches": 187,
+    "engine_rebuild_for_v3": "Not performed in this release validation"
+  }
+}

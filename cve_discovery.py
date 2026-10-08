@@ -92,6 +92,8 @@ def assess_asset(asset, corpora):
                 'cve_id': record['cve_id'], 'similarity': similarity, 'applicability': status,
                 'applicability_evidence': evidence, 'description': str(record.get('description', '')),
                 'cvss': float(record['cvss']), 'epss': float(record['epss']), 'kev': int(record['kev']),
+                'cvss_vector':record.get('cvss_vector') if isinstance(record.get('cvss_vector'),str) else None,
+                'cvss_version':record.get('cvss_version') if isinstance(record.get('cvss_version'),str) else None,
                 'matched_product': record.get('product'), 'corpus': corpus.name,
             })
             previous = accepted.get(info['cve_id'])

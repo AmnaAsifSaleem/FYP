@@ -1,3 +1,5 @@
+> Historical summary: formula and standards attributions below are retired. Use [FORMULAS.md](FORMULAS.md) and the current README for cave-ot-3 behavior.
+
 # CAVE-OT ML Pipeline - Project Summary
 
 ## What Was Built

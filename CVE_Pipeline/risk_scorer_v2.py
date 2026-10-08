@@ -2,9 +2,14 @@
 CAVE-OT Risk Scorer v2
 Accepts vulnerability_scan_results format.
 - Enriches CVEs with real c/i/a_impact from local OT+general databases
-- Falls back to OT-context CVSS-band estimates when CVE not in database
+- Missing vectors/CIA remain explicit; see Reports/FORMULAS.md
 - Sorts by risk_score DESC, then epss DESC as tiebreaker
 """
+from pathlib import Path
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from contextual_risk import score_cve,score_details,VERSION
+from ids_context import risk_context
 
 import json
 import sys
@@ -15,8 +20,8 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 MODEL_FOLDER = os.path.join(_HERE, "..", "model")
 
 RISK_TIERS = [
-    (8.0, "CRITICAL", "🔴"),
-    (6.0, "HIGH",     "🟠"),
+    (9.0, "CRITICAL", "🔴"),
+    (7.0, "HIGH",     "🟠"),
     (4.0, "MEDIUM",   "🟡"),
     (0.0, "LOW",      "🟢"),
 ]
@@ -47,46 +52,14 @@ def build_cia_lookup() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# CIA fallback — OT-context bands when CVE is absent from local database
-#
-#  CVSS >= 9.0  → H/H/H  (0.56, 0.56, 0.56)  full impact
-#  CVSS >= 7.0  → L/H/H  (0.22, 0.56, 0.56)  high A + I
-#  CVSS >= 5.5  → N/L/H  (0.00, 0.22, 0.56)  availability dominant
-#  CVSS >= 4.0  → N/L/L  (0.00, 0.22, 0.22)  low impact
-#  CVSS <  4.0  → N/N/L  (0.00, 0.00, 0.22)  minimal
-# ---------------------------------------------------------------------------
+# Missing CIA stays unknown; no CVSS-band inference.
 
-def cia_fallback(cvss: float):
-    if cvss >= 9.0: return 0.56, 0.56, 0.56
-    if cvss >= 7.0: return 0.22, 0.56, 0.56
-    if cvss >= 5.5: return 0.00, 0.22, 0.56
-    if cvss >= 4.0: return 0.00, 0.22, 0.22
-    return 0.00, 0.00, 0.22
-
-
-
-# ---------------------------------------------------------------------------
 # Formula helpers
 # ---------------------------------------------------------------------------
 
-def get_exploit_maturity(epss: float) -> float:
-    if epss >= 0.70: return 1.00
-    if epss >= 0.40: return 0.97
-    if epss >= 0.10: return 0.94
-    return 0.91
 
-def get_remediation_level(kev: int) -> float:
-    return 1.00 if kev == 1 else 0.95
 
-def calculate_cia_score(c: float, i: float, a: float) -> float:
-    """OT-weighted CIA (NIST SP 800-82): C=20%, I=30%, A=50%"""
-    return (c * 0.20) + (i * 0.30) + (a * 0.50)
 
-def calculate_suricata_factor(alert_count: int, alert_severity: int) -> float:
-    if alert_count == 0:
-        return 0.0
-    w = SEVERITY_WEIGHT.get(alert_severity, 0.30)
-    return min((alert_count * w) / 30.0, 1.0)
 
 def get_risk_tier(score: float):
     for threshold, tier, emoji in RISK_TIERS:
@@ -121,14 +94,18 @@ def process(input_path: str, output_path: str, cia_lookup: dict):
         db_hits = 0
         scored_cves = []
         for cve in cves_raw:
-            risk_score, c, i, a, src = score_cve(
-                cve, criticality, cia_lookup, alert_count, alert_sev
-            )
+            context=risk_context(device.get('alert_events',[]))
+            details=score_details(cve,criticality,cia_lookup,
+                weighted_alert_count=context['risk_alert_weighted_count'],
+                security_requirements=device.get('cvss_requirements'))
+            risk_score=details['risk_score']
+            c,i,a,src=[details[k] for k in ('c_impact','i_impact','a_impact','cia_source')]
             tier, emoji = get_risk_tier(risk_score)
             if src == "db":
                 db_hits += 1
             scored_cves.append({
                 **cve,
+                **details,
                 "c_impact":   c,
                 "i_impact":   i,
                 "a_impact":   a,
@@ -138,8 +115,8 @@ def process(input_path: str, output_path: str, cia_lookup: dict):
                 "risk_emoji": emoji,
             })
 
-        # Primary: risk_score DESC  |  Tiebreaker: epss DESC
-        scored_cves.sort(key=lambda x: (x["risk_score"], x["epss"]), reverse=True)
+        # Preserve priority differences hidden by display capping/rounding.
+        scored_cves.sort(key=lambda x: (x["priority_total"], x["epss"]), reverse=True)
 
         results.append({
             "ip":           ip,
@@ -148,7 +125,7 @@ def process(input_path: str, output_path: str, cia_lookup: dict):
             "product":      product,
             "criticality":  criticality,
             "cia_db_hits":  db_hits,
-            "cia_fallback": len(scored_cves) - db_hits,
+            "cia_unknown": sum(c["cia_source"]=="unknown" for c in scored_cves),
             "cves":         scored_cves,
         })
 
@@ -171,7 +148,7 @@ def print_summary(results: list):
         total_cves += len(cves)
         print(f"\n{device['device_type']}  |  {device['vendor']} {device['product']}")
         print(f"  Criticality: {device['criticality']}  |  CVEs: {len(cves)}"
-              f"  (DB lookup: {device['cia_db_hits']}  estimated: {device['cia_fallback']})")
+              f"  (DB lookup: {device['cia_db_hits']}  unknown: {device['cia_unknown']})")
         print(f"  {'CVE ID':<20} {'CVSS':>5}  {'EPSS':>7}  {'C / I / A':>13}  {'Risk':>5}  Tier")
         print(f"  {'-'*20} {'-'*5}  {'-'*7}  {'-'*13}  {'-'*5}  ----")
         for cve in cves:
@@ -182,7 +159,7 @@ def print_summary(results: list):
                   f"  {cve['risk_emoji']} {cve['risk_tier']}")
             risk_counts[cve["risk_tier"]] += 1
 
-    print("\n* = CIA estimated from CVSS band (CVE not in local database)")
+    print("\nUnknown CIA remains unknown; no CVSS-band inference")
     print("\n" + "=" * 74)
     print(f"Total devices : {len(results)}")
     print(f"Total CVEs    : {total_cves}")

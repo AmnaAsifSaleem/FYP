@@ -13,3 +13,6 @@ watchdog
 
 # Remediation Advisor uses Groq over HTTPS; API key comes from GROQ_API_KEY
 pydantic
+
+# IANA zones for timestamped IDS logs on Windows/VM hosts
+tzdata

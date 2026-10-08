@@ -239,6 +239,8 @@ def parse_nvd_item(item):
 
         return {
             "cve_id":        cve_id,
+            "cvss_vector":   m.get('vectorString',''),
+            "cvss_version":  m.get('version',''),
             "cpe_matches":json.dumps(cpe_matches),
             "vendor":        vendor.lower().strip(),
             "product":       product.lower().strip(),
@@ -366,8 +368,12 @@ def clean_and_save(df, folder):
     df['complexity']    = df['complexity'].fillna('')
     df['description']   = df['description'].fillna('')
 
+    for column in ('cpe_matches','cvss_vector','cvss_version'):
+        if column not in df.columns:df[column]=''
+        df[column]=df[column].fillna('')
     df = df[[
         'cve_id', 'vendor', 'product',
+        'cpe_matches','cvss_vector','cvss_version',
         'version_start', 'version_end',
         'cvss', 'epss', 'kev',
         'c_impact', 'i_impact', 'a_impact',

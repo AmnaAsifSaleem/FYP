@@ -39,7 +39,7 @@ RUN (pip3 download --no-index --only-binary=:all: --find-links=/tmp/wheelhouse -
 
 # App code lives at the same path the VM used, so no in-code path changes needed
 WORKDIR /home/caveot/cave_ot_test
-COPY cave_monitor.py attack_path.py smart_discover.py cve_discovery.py anomaly_detector.py pipeline_paths.py validation.py contextual_risk.py cve_applicability.py snapshot_io.py ./
+COPY cave_monitor.py attack_path.py smart_discover.py cve_discovery.py anomaly_detector.py pipeline_paths.py validation.py contextual_risk.py cvss31.py risk_policy.py ids_context.py cve_applicability.py snapshot_io.py ./
 COPY model/ ./model/
 
 # Suricata expects its log dir

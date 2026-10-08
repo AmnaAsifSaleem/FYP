@@ -8,7 +8,8 @@ def test_fast_log_priority_and_destination_are_preserved(tmp_path):
  from smart_discover import read_suricata_alerts
  log=tmp_path/'fast.log'
  log.write_text('10/07/2026-00:00:00.000000 [**] [1:9000001:1] Ordinary connection Attack wording [**] [Priority: 3] {TCP} 192.0.2.2:51000 -> 192.0.2.1:502\n')
- event=read_suricata_alerts(str(log))[0]
+ from datetime import datetime,timezone
+ event=read_suricata_alerts(str(log),now=datetime(2026,10,7,0,0,1,tzinfo=timezone.utc))[0]
  assert event['severity']==3 and event['src_ip']=='192.0.2.2' and event['dest_ip']=='192.0.2.1'
 
 def test_signature_does_not_inherit_another_signatures_attack_priority():
@@ -19,7 +20,7 @@ def test_signature_does_not_inherit_another_signatures_attack_priority():
           'alert_events':[{'message':'Normal connection','severity':3,'src_ip':'192.0.2.2','dest_ip':'192.0.2.1'},
                           {'message':'Rapid connection attack','severity':1,'src_ip':'192.0.2.3','dest_ip':'192.0.2.1'}]}
  assert upsert_alerts(cur,1,payload)==2
- values=[call.args[1] for call in cur.execute.call_args_list]
+ values=[call.args[1] for call in cur.execute.call_args_list if 'INSERT INTO alerts' in call.args[0]]
  assert values[0]['sev']==3 and values[0]['attack'] is False
  assert values[1]['sev']==1 and values[1]['attack'] is True
  assert values[0]['src_ip']=='192.0.2.2' and values[1]['src_ip']=='192.0.2.3'
