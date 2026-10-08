@@ -54,3 +54,9 @@ python -m pytest tests -q -p no:cacheprovider
 Database integration tests create and remove disposable schemas and never modify production records. Regression coverage includes invalid scores, firmware boundaries, missing evidence, deterministic policy/API/database flow, violation/alert idempotency, snapshot corruption, remediation contracts, and blocked approvals. Live Docker/Suricata tests require a functioning host engine; a stopped engine is not a successful live test.
 
 The audit repair migration preserves pre-repair rows in `audit_repair_archive`, repairs orphaned compliance references and duplicated rule seeds, restores the foreign key, removes artificial port-zero padding, and marks old similarity associations unverified.
+
+## Analyst policy review
+
+System recommendations and analyst decisions are separate. The policy page shows rule counts, records named decisions and rationale, and requests revalidation when policy evidence changes. Typed reviewer names are not authenticated accounts. See [Reports/POLICY_REVIEW_EXPLAINED.md](Reports/POLICY_REVIEW_EXPLAINED.md).
+
+Normal migration creates the ledger; explicit setup: `python Database/migrate_policy_reviews.py`.

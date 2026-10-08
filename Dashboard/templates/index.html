@@ -18,7 +18,7 @@
     </div>
     <div class="col-6 col-xl-3">
         <div class="stat-card red">
-            <div class="stat-label">Critical CVE Associations</div>
+            <div class="stat-label">Critical CVEs</div>
             <div class="stat-value red" id="s-critical">—</div>
             <div class="stat-sub" id="s-high">— high severity</div>
             <i class="bi bi-shield-fill-exclamation stat-icon" style="color:var(--accent-red)"></i>
@@ -26,7 +26,7 @@
     </div>
     <div class="col-6 col-xl-3">
         <div class="stat-card orange">
-            <div class="stat-label">CVE Associations</div>
+            <div class="stat-label">Total CVEs</div>
             <div class="stat-value orange" id="s-total-cves">—</div>
             <div class="stat-sub" id="s-kev"></div>
             <div id="s-kev-list" style="margin-top:4px"></div>
@@ -118,7 +118,7 @@
 <!-- Top critical CVEs table -->
 <div class="panel">
     <div class="panel-header">
-        <span class="panel-title">Highest Risk CVE Associations</span>
+        <span class="panel-title">Highest Risk Total CVEs</span>
         <a href="/vulnerabilities" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-cyan);text-decoration:none">VIEW ALL →</a>
     </div>
     <div class="panel-body" style="padding:0">
@@ -180,11 +180,11 @@ async function loadSummary() {
     countUp(document.getElementById('s-total-assets'), d.total_assets);
     document.getElementById('s-active-assets').textContent = d.monitoring_running ? `${d.active_assets} recently observed` : 'Not monitored — saved scan';
     countUp(document.getElementById('s-critical'), d.critical_cves);
-    document.getElementById('s-high').textContent = `${d.high_cves} high · candidates included`;
+    document.getElementById('s-high').textContent = `${d.high_cves} high · potential matches included`;
     countUp(document.getElementById('s-total-cves'), d.total_cves);
     const kevEl = document.getElementById('s-kev');
     kevEl.textContent = d.kev_cves > 0
-        ? `${d.confirmed_cves} confirmed · ${d.potential_cves} potential · ${d.kev_cves} KEV associations` : `${d.confirmed_cves} confirmed · ${d.potential_cves} potential`;
+        ? `${d.confirmed_cves} confirmed · ${d.potential_cves} potential · ${d.kev_cves} KEV entries` : `${d.confirmed_cves} confirmed · ${d.potential_cves} potential`;
     kevEl.style.color = d.kev_cves > 0 ? 'var(--accent-red)' : '';
     kevEl.style.fontWeight = d.kev_cves > 0 ? '700' : '';
 
@@ -198,7 +198,7 @@ async function loadSummary() {
     `).join('');
 
     countUp(document.getElementById('s-alerts'), d.total_alerts);
-    document.getElementById('s-attacks').textContent = `${d.active_attacks} ${d.monitoring_running ? 'recorded attack events' : 'saved attack events'}`;
+    document.getElementById('s-attacks').textContent = `${d.active_attacks} ${d.monitoring_running ? 'recorded signature matches' : 'saved signature matches'}`;
     countUp(document.getElementById('s-anomalous'), d.anomalous_assets);
 }
 
@@ -303,7 +303,7 @@ async function loadCharts() {
     new Chart(document.getElementById('chart-zone'), {
         type: 'radar',
         data: {
-            labels: ['CVE Associations', 'Avg Risk', 'Critical Associations'],
+            labels: ['Total CVEs', 'Avg Risk', 'Critical CVEs'],
             datasets: zoneData.map((z, i) => ({
                 label: z.zone,
                 data: [
@@ -319,7 +319,11 @@ async function loadCharts() {
         },
         options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { position: 'top' } },
+            plugins: { legend: { position: 'top' }, tooltip: { callbacks: {
+                label: context => {const z=zoneData[context.datasetIndex];
+                    const values=[`${z.total_cves} CVEs`,`${z.avg_risk??'Unavailable'} / 10 average priority`,`${z.critical} critical CVEs`];
+                    return `${z.zone}: ${values[context.dataIndex]}`;}
+            }} },
             scales: {
                 r: {
                     grid: { color: 'rgba(26,58,80,0.8)' },

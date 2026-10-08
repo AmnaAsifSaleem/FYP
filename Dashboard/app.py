@@ -32,6 +32,7 @@ import psycopg2
 import psycopg2.extras
 
 app = Flask(__name__)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 from request_connection import close_connections
 app.teardown_appcontext(close_connections)
 
@@ -124,10 +125,25 @@ def api_attack_path_nodes():
                    risk_score, is_attacked,
                    top_cve_id, top_cve_cvss, top_cve_tier, top_cve_desc,
                    updated_at
-            FROM attack_path_nodes;
+            FROM attack_path_nodes WHERE device_name IN (SELECT device_type FROM assets);
         """)
         rows = {r['device_name']: dict(r) for r in cur.fetchall()}
         conn.close()
+        # Prefer descriptions already preserved in the current complete cycle.
+        # This also covers Cisco/Dell CVEs retrieved from the general corpus.
+        try:
+            from snapshot_io import load_cycle
+            from pipeline_paths import RUNTIME_FOLDER
+            _,payload=load_cycle(RUNTIME_FOLDER)
+            descriptions={c['cve_id']:c['description']
+                for device in payload['risk_scored_results.json'].get('devices',[])
+                for c in device.get('cves',[])
+                if isinstance(c.get('description'),str) and c['description'].strip()}
+            for row in rows.values():
+                if not row.get('top_cve_desc'):
+                    row['top_cve_desc']=descriptions.get(row.get('top_cve_id'))
+        except (OSError,ValueError,KeyError):
+            pass  # Missing description remains explicit; no invented text.
         for r in rows.values():
             del r['device_name']
             if r.get('updated_at'):

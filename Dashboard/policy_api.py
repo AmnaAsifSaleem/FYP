@@ -156,6 +156,22 @@ def policy_assets():
         """)
         
         assets = cur.fetchall()
+        from policy_reviews import fingerprint,public_review
+        from policy_engine import evaluate
+        from policy_gatekeeper import load_active_rules
+        rules=load_active_rules(cur)
+        cur.execute('SELECT asset_id,cve_id,cvss,applicability FROM vulnerabilities')
+        cves_by_asset={}
+        for cve in cur.fetchall():cves_by_asset.setdefault(cve['asset_id'],[]).append(dict(cve))
+        cur.execute("""SELECT DISTINCT ON (asset_id)
+            id,asset_id,analyst_decision,reviewer,rationale,acknowledged_findings,
+            system_recommendation,assessment_fingerprint,decided_at
+            FROM policy_manual_reviews ORDER BY asset_id,decided_at DESC,id DESC""")
+        latest={row['asset_id']:dict(row) for row in cur.fetchall()}
+        for asset in assets:
+            current=evaluate(dict(asset),cves_by_asset.get(asset['id'],[]),rules)
+            token,_=fingerprint(dict(asset),cves_by_asset.get(asset['id'],[]),rules,current)
+            asset['analyst_review']=public_review(latest.get(asset['id']),token)
         
         # Convert to list of dicts
         from monitoring_view import asset_view,scan_running
@@ -285,3 +301,43 @@ def register_policy_api(app):
     """Register policy API blueprint with Flask app"""
     app.register_blueprint(policy_bp)
     print("✓ Policy compliance API registered at /api/policy/")
+
+
+@policy_bp.route('/review/<int:asset_id>',methods=['GET','POST'])
+def analyst_review(asset_id):
+    import psycopg2.extras
+    from policy_reviews import assess,save_review,public_review,EvidenceChanged
+    if request.method=='POST':
+        if request.headers.get('Origin') and request.headers['Origin'].rstrip('/')!=request.host_url.rstrip('/'):
+            return jsonify(error='Cross-origin decisions are not permitted'),403
+        if not request.is_json:return jsonify(error='Submit a JSON decision'),415
+    conn=None
+    try:
+        conn=get_db_connection()
+        if request.method=='POST':
+            row=save_review(conn,asset_id,request.get_json(silent=True))
+            conn.commit()
+            return jsonify(review=public_review(row,row['assessment_fingerprint'])),201
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            asset,cves,rules,result,token,snapshot=assess(cur,asset_id)
+            cur.execute("""SELECT id,asset_id,analyst_decision,reviewer,rationale,acknowledged_findings,
+                system_recommendation,assessment_fingerprint,decided_at
+                FROM policy_manual_reviews WHERE asset_id=%s ORDER BY decided_at DESC,id DESC LIMIT 20""",(asset_id,))
+            history=[public_review(row,token) for row in cur.fetchall()]
+        return jsonify(asset={'id':asset['id'],'vendor':asset.get('vendor'),'product':asset.get('product'),'ip':asset['ip'],'port':asset['port']},
+            assessment=result,assessment_fingerprint=token,history=history,
+            reviewer_identity='Self-reported name; local prototype has no user authentication',enforcement='ADVISORY')
+    except EvidenceChanged as e:
+        if conn:conn.rollback()
+        return jsonify(error=str(e)),409
+    except LookupError as e:
+        if conn:conn.rollback()
+        return jsonify(error=str(e)),404
+    except ValueError as e:
+        if conn:conn.rollback()
+        return jsonify(error=str(e)),422
+    except psycopg2.Error:
+        if conn:conn.rollback()
+        return jsonify(error='Review database unavailable; previous decisions preserved'),503
+    finally:
+        if conn:conn.close()

@@ -5,6 +5,7 @@
 {% block content %}
 
 <div class="section-heading">Security alerts — Suricata and policy findings</div>
+<p style="color:var(--text-muted);font-size:12px">Counts include repeated rule matches. A signature match indicates observed traffic matching a rule, not confirmed compromise. Policy rows report failed plant checks.</p>
 
 <!-- Alert stats -->
 <div class="row g-3 mb-4" id="alert-stats">
@@ -65,50 +66,13 @@
                         <th>Protocol</th>
                         <th>Source</th>
                         <th>Destination</th>
-                        <th>Attack</th>
+                        <th>Signature evidence</th>
                         <th>Count</th>
                         <th>Detected</th>
                     </tr>
                 </thead>
                 <tbody id="alerts-tbody"></tbody>
             </table>
-        </div>
-    </div>
-</div>
-
-<!-- Info panel about Suricata integration -->
-<div class="panel mt-3">
-    <div class="panel-header">
-        <span class="panel-title">Suricata Integration</span>
-    </div>
-    <div class="panel-body">
-        <div class="row g-3">
-            <div class="col-12 col-md-4">
-                <div style="background:var(--bg-dark);border:1px solid var(--border);border-radius:4px;padding:16px">
-                    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-cyan);letter-spacing:2px;margin-bottom:8px">DATA SOURCE</div>
-                    <div style="font-size:13px;color:var(--text-primary)">Suricata IDS (passive detection)</div>
-                    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">Suricata fast.log and plant policy findings</div>
-                </div>
-            </div>
-            <div class="col-12 col-md-4">
-                <div style="background:var(--bg-dark);border:1px solid var(--border);border-radius:4px;padding:16px">
-                    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-cyan);letter-spacing:2px;margin-bottom:8px">PROTOCOLS MONITORED</div>
-                    <div style="display:flex;flex-wrap:wrap;gap:4px">
-                        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;background:rgba(255,140,0,0.1);border:1px solid rgba(255,140,0,0.3);color:var(--accent-orange);padding:2px 8px;border-radius:2px">Modbus</span>
-                        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;background:rgba(255,140,0,0.1);border:1px solid rgba(255,140,0,0.3);color:var(--accent-orange);padding:2px 8px;border-radius:2px">S7comm</span>
-                        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;background:rgba(255,140,0,0.1);border:1px solid rgba(255,140,0,0.3);color:var(--accent-orange);padding:2px 8px;border-radius:2px">DNP3</span>
-                        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;background:rgba(255,140,0,0.1);border:1px solid rgba(255,140,0,0.3);color:var(--accent-orange);padding:2px 8px;border-radius:2px">BACnet</span>
-                        <span style="font-family:'Share Tech Mono',monospace;font-size:10px;background:rgba(255,140,0,0.1);border:1px solid rgba(255,140,0,0.3);color:var(--accent-orange);padding:2px 8px;border-radius:2px">HTTP</span>
-                    </div>
-                </div>
-            </div>
-            <div class="col-12 col-md-4">
-                <div style="background:var(--bg-dark);border:1px solid var(--border);border-radius:4px;padding:16px">
-                    <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--accent-cyan);letter-spacing:2px;margin-bottom:8px">INGEST METHOD</div>
-                    <div style="font-size:13px;color:var(--text-primary)">Complete monitoring snapshots</div>
-                    <div style="font-size:12px;color:var(--text-muted);margin-top:4px">sync_db.py → PostgreSQL</div>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -195,7 +159,7 @@ async function loadAlerts() {
                     ? '<span style="font-family:\'Share Tech Mono\',monospace;font-size:10px;color:var(--critical);background:rgba(255,51,85,0.15);border:1px solid rgba(255,51,85,0.4);padding:2px 8px;border-radius:2px">SIGNATURE MATCH</span>'
                     : '<span style="color:var(--text-muted);font-size:11px">—</span>'}
             </td>
-            <td><span style="font-family:'Share Tech Mono',monospace">${a.alert_count || 1}</span></td>
+            <td><span style="font-family:'Share Tech Mono',monospace">${a.alert_count ?? 0}</span></td>
             <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text-muted);white-space:nowrap">
                 ${a.detected_at ? a.detected_at.substring(0,16) : '—'}
             </td>

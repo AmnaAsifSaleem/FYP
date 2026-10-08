@@ -449,7 +449,7 @@ function renderGraph(paths, nodeAnnotations) {
         .attr('stroke-width', 2);
 
     node.append('text')
-        .text(d => d.risk_score > 0 ? d.risk_score.toFixed(1) : '—')
+        .text(d => d.top_cve_id ? d.risk_score.toFixed(1) : 'N/A')
         .attr('text-anchor','middle').attr('dy','0.35em')
         .attr('font-family',"'Share Tech Mono', monospace").attr('font-size','12px')
         .attr('fill',d => nodeColour(d)).style('pointer-events','none');
@@ -481,8 +481,8 @@ function renderGraph(paths, nodeAnnotations) {
         const zoneStr     = d.zone        || '—';
         const critStr     = d.criticality != null
             ? Number(d.criticality).toFixed(2) : '—';
-        const riskStr     = d.risk_score  != null
-            ? Number(d.risk_score).toFixed(1)  : '—';
+        const riskStr     = d.top_cve_id && d.risk_score != null
+            ? Number(d.risk_score).toFixed(1) : 'Not assessed';
 
         const cveBlock = d.top_cve_id ? `
             <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(90,138,159,0.3)">
@@ -528,7 +528,7 @@ function renderGraph(paths, nodeAnnotations) {
         // Static fallback for touch devices (Requirement 7.4)
         const zoneStr  = d.zone       || '—';
         const critStr  = d.criticality != null ? Number(d.criticality).toFixed(2) : '—';
-        const riskStr  = d.risk_score  != null ? Number(d.risk_score).toFixed(1)  : '—';
+        const riskStr  = d.top_cve_id && d.risk_score != null ? Number(d.risk_score).toFixed(1) : 'Not assessed';
         const roleStr  = ENTRY_POINTS.has(d.id) ? 'Entry Point'
                        : TARGETS.has(d.id)      ? 'Target'
                        : 'Intermediate';
@@ -568,17 +568,17 @@ function renderGraph(paths, nodeAnnotations) {
                 </div>
                 <div>
                     <div style="color:var(--text-muted);font-size:10px;
-                                text-transform:uppercase;margin-bottom:2px">Attacked</div>
+                                text-transform:uppercase;margin-bottom:2px">IDS signature match</div>
                     <div style="color:${d.is_attacked ? 'var(--accent-red)' : 'var(--text-muted)'}">
-                        ${d.is_attacked ? '⚠ YES — IDS ALERT' : 'No'}</div>
+                        ${d.is_attacked ? 'Rule matched — verify activity' : 'No signature flag'}</div>
                 </div>
                 <div>
                     <div style="color:var(--text-muted);font-size:10px;
-                                text-transform:uppercase;margin-bottom:2px">Exploitable CVE</div>
+                                text-transform:uppercase;margin-bottom:2px">Top candidate CVE</div>
                     <div style="color:${d.top_cve_id ? 'var(--accent-red)' : 'var(--text-muted)'};font-weight:${d.top_cve_id ? 'bold' : 'normal'}">
                         ${d.top_cve_id
                             ? `${d.top_cve_id} (CVSS ${d.top_cve_cvss != null ? Number(d.top_cve_cvss).toFixed(1) : '—'}${d.top_cve_tier ? ', ' + d.top_cve_tier : ''})`
-                            : 'None known'}</div>
+                            : 'No scored CVE association'}</div>
                 </div>
             </div>
             ${d.top_cve_desc ? `
@@ -586,8 +586,8 @@ function renderGraph(paths, nodeAnnotations) {
                         font-family:'Share Tech Mono',monospace;font-size:12px">
                 <div style="color:var(--text-muted);font-size:10px;
                             text-transform:uppercase;margin-bottom:4px">Candidate vulnerability description — verify applicability</div>
-                <div style="color:var(--text-primary,#ccc);line-height:1.5">${d.top_cve_desc}</div>
-            </div>` : ''}`;
+                <div style="color:var(--text-primary,#ccc);line-height:1.5">${escapeHtml(d.top_cve_desc)}</div>
+            </div>` : '<div style="margin-top:12px;color:var(--text-muted);font-size:12px">'+(d.top_cve_id ? 'Candidate description unavailable in the current snapshot.' : 'No scored CVE association; this does not establish that the asset is safe.')+'</div>'}`;
     }
 
     // Bind mouse events
@@ -648,7 +648,6 @@ function renderPathTable(paths) {
         const isDanger = i === 0;   // lowest cost = highest risk
         const pathStr  = formatPath(p.path_json);
         const maxRisk  = p.max_risk_on_path != null ? p.max_risk_on_path.toFixed(1) : '—';
-        const cost     = p.cost != null ? p.cost.toFixed(4) : '—';
         const riskCol  = p.max_risk_on_path >= 8 ? 'var(--accent-red)'
                        : p.max_risk_on_path >= 5 ? 'var(--accent-orange)'
                        : 'var(--accent-yellow)';
@@ -671,10 +670,6 @@ function renderPathTable(paths) {
             <td style="font-family:'Share Tech Mono',monospace;font-size:13px;text-align:center">
                 ${p.hops != null ? p.hops : '—'}
             </td>
-            <td style="font-family:'Orbitron',monospace;font-size:13px;
-                       color:${isDanger ? 'var(--accent-red)' : 'var(--accent-cyan)'}">
-                ${cost}
-            </td>
             <td>
                 <span style="font-family:'Orbitron',monospace;font-size:13px;color:${riskCol}">
                     ${maxRisk}
@@ -692,7 +687,6 @@ function renderPathTable(paths) {
                     <th>Path</th>
                     <th>Target</th>
                     <th style="text-align:center">Hops</th>
-                    <th>Cost</th>
                     <th>Max Risk</th>
                 </tr>
             </thead>

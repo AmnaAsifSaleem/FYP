@@ -1,0 +1,26 @@
+{
+  "verified": true,
+  "fresh_cycle_ids": [
+    "e286dbaf68f04a739686c641c6417e6e",
+    "7eeabda43c6d4fd18b9a8d384c17afe0"
+  ],
+  "discovered_assets": 15,
+  "candidate_cves": 187,
+  "real_ids_events": 49191,
+  "database": {
+    "assets": 15,
+    "vulnerabilities": 187,
+    "alerts": 34,
+    "policy_compliance": 15,
+    "active_assets": 15
+  },
+  "api_statuses": {
+    "/api/summary": 200,
+    "/api/assets": 200,
+    "/api/alerts": 200,
+    "/api/policy/assets": 200,
+    "/api/attack_paths": 200
+  },
+  "rule_validation": "PASS",
+  "backend": "Configured installed container engine"
+}

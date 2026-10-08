@@ -10,7 +10,6 @@
 <div class="filter-bar mb-3">
     <button class="filter-btn active" onclick="filterAssets('ALL', this)">ALL</button>
     <button class="filter-btn" onclick="filterAssets('ACTIVE', this)">ACTIVE</button>
-    <button class="filter-btn" onclick="filterAssets('INACTIVE', this)">NOT RECENTLY SEEN</button>
     <button class="filter-btn" onclick="filterAssets('NOT_MONITORED', this)">NOT MONITORED</button>
     <button class="filter-btn" onclick="filterAssets('OT', this)">OT ZONE</button>
     <button class="filter-btn" onclick="filterAssets('IT', this)">IT ZONE</button>
@@ -104,7 +103,8 @@ function renderAssets(assets) {
     }
     grid.innerHTML = assets.map(a => {
         const critPct = Math.round((a.criticality || 0) * 100);
-        const maxRisk = a.max_risk_score || 0;
+        const maxRisk = a.max_risk_score;
+        const hasRisk = typeof maxRisk === 'number' && Number.isFinite(maxRisk);
         const riskCol = riskColor(maxRisk);
         const statusIcon = a.status === 'ACTIVE'
             ? '<span class="status-dot" style="display:inline-block"></span>'
@@ -194,7 +194,7 @@ function renderAssets(assets) {
                     <!-- Max risk -->
                     <div class="mt-3">
                         <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text-muted);letter-spacing:1px;margin-bottom:4px">MAX RISK SCORE</div>
-                        ${riskBar(maxRisk)}
+                        ${hasRisk ? riskBar(maxRisk) : '<span style="color:var(--text-muted);font-size:12px">Not assessed — no scored CVE association</span>'}
                     </div>
                 </div>
             </div>
@@ -263,9 +263,9 @@ async function openAsset(id, name) {
             <td style="min-width:130px">${riskBar(v.risk_score)}</td>
             <td>${tierBadge(v.risk_tier)}</td>
             <td>
-                <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-red)">C:${v.c_impact||0}</span>
-                <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-orange);margin:0 4px">I:${v.i_impact||0}</span>
-                <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-yellow)">A:${v.a_impact||0}</span>
+                <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-red)">C:${v.c_impact??'Unknown'}</span>
+                <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-orange);margin:0 4px">I:${v.i_impact??'Unknown'}</span>
+                <span style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--accent-yellow)">A:${v.a_impact??'Unknown'}</span>
             </td>
         </tr>
     `).join('');

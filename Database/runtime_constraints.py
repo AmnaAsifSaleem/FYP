@@ -4,6 +4,8 @@ sys.path.insert(0,os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pipeline_paths import DB_CONFIG
 import psycopg2
 def apply(conn):
+    from Database.migrate_policy_reviews import ensure
+    ensure(conn)
     with conn.cursor() as cur:
         cur.execute("""INSERT INTO policy_rules(rule_name,description,policy_source,zone,is_active)
             SELECT 'IT Zone OT Protocol Restriction','Modbus, S7comm, DNP3 and BACnet are prohibited in the plant IT zone; require analyst restriction review','Plant segmentation policy','IT',TRUE

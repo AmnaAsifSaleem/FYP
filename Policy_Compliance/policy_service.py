@@ -8,6 +8,8 @@ def evaluate_and_save(cur,asset,rules=None):
     cur.execute('SELECT * FROM vulnerabilities WHERE asset_id=%s',(aid,))
     cves=[dict(c) for c in cur.fetchall()]
     result=evaluate(dict(asset),cves,rules)
+    from policy_reviews import fingerprint
+    result['assessment_fingerprint']=fingerprint(dict(asset),cves,rules,result)[0]
     cur.execute('''INSERT INTO policy_compliance (asset_id,compliance_status,compliance_score,confidence,explanation,key_factors,decision,coverage)
       VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (asset_id) DO UPDATE SET
       compliance_status=EXCLUDED.compliance_status,compliance_score=EXCLUDED.compliance_score,

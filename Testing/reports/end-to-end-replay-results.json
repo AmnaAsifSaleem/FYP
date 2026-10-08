@@ -1,0 +1,21 @@
+{
+  "standalone_ingestion_verified": true,
+  "assets": 16,
+  "vulnerabilities": 3,
+  "policy_compliance": 16,
+  "policy_violations": 1,
+  "alerts": 1,
+  "attack_paths": 16,
+  "confirmed": 0,
+  "unknown_assets": 1,
+  "api_statuses": {
+    "/api/assets": 200,
+    "/api/vulnerabilities": 200,
+    "/api/policy/assets": 200,
+    "/api/policy/summary": 200,
+    "/api/attack_paths": 200,
+    "/api/remediation/candidates": 200
+  },
+  "cycle_id": "4df5c6d584514adab51d7e1d57076ba7",
+  "mode": "Synthetic replay; no live IDS traffic or production writes"
+}
